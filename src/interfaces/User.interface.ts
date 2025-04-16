@@ -3,4 +3,8 @@ export interface IUser {
   email: string
   phoneNumber: string
   password: string
+  verificationCode?: string
+  isVerified?: boolean
+  resetPasswordToken?: string
+  resetPasswordExpires?: Date
 }
