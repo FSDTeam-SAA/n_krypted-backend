@@ -3,6 +3,7 @@ import sendEmail from '../utils/email'
 import crypto from 'crypto'
 import jwt from 'jsonwebtoken'
 import { Request, Response } from 'express'
+import bcrypt from 'bcrypt'
 
 // User Registration
 export const register = async (req: Request, res: Response): Promise<void> => {
@@ -17,11 +18,13 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 
     const verificationCode = crypto.randomBytes(3).toString('hex')
 
+    const hashedPassword = await bcrypt.hash(password, 10)
+
     const newUser = new User({
       name,
       email,
       phoneNumber,
-      password,
+      password: hashedPassword,
       verificationCode,
     })
 
@@ -59,7 +62,7 @@ export const login = async (req: Request, res: Response) => {
       return
     }
 
-    const isMatch = password === user.password
+    const isMatch = await bcrypt.compare(password, user.password)
     if (!isMatch) {
       res
         .status(400)
@@ -80,45 +83,143 @@ export const login = async (req: Request, res: Response) => {
 
     res.status(200).json({ success: true, token: token })
   } catch (error: unknown) {
-    res
-      .status(500)
-      .json({
-        success: false,
-        message: 'Internal server error',
-        error: (error as Error).message,
-      })
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: (error as Error).message,
+    })
   }
 }
 
 // Forgot Password
-export const forgotPassword = async (req: Request, res: Response):Promise<void> => {
+export const forgotPassword = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
   try {
     const { email } = req.body
 
     const user = await User.findOne({ email })
+    // Always respond with success to prevent email enumeration
     if (!user) {
-       res.status(400).json({ message: 'User not found' })
-       return
+      res
+        .status(200)
+        .json({
+          message: 'If that email is registered, a reset link has been sent.',
+        })
+      return
     }
 
     const resetToken = crypto.randomBytes(20).toString('hex')
-    user.resetPasswordToken = resetToken
+    const resetTokenHash = await bcrypt.hash(resetToken, 10)
+    user.resetPasswordToken = resetTokenHash
     user.resetPasswordExpires = new Date(Date.now() + 3600000)
 
     await user.save()
 
-    const resetUrl = `${req.protocol}://${req.get(
-      'host'
-    )}/reset-password/${resetToken}`
+    // Use a frontend URL for reset
+    const resetUrl = `${
+      process.env.FRONTEND_URL || 'http://localhost:3000'
+    }/reset-password?token=${resetToken}&email=${encodeURIComponent(email)}`
     await sendEmail(
       email,
       'Password Reset Request',
       `You requested a password reset. Click the link to reset your password: ${resetUrl}`
     )
 
-    res.status(200).json({ message: 'Password reset email sent' })
+    res
+      .status(200)
+      .json({
+        message: 'If that email is registered, a reset link has been sent.',
+      })
   } catch (error: unknown) {
     res.status(500).json({
+      message: 'Internal server error',
+      error: (error as Error).message,
+    })
+  }
+}
+
+// Verify Code
+export const verifyCode = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { email, code } = req.body
+    const user = await User.findOne({ email })
+    if (!user) {
+      res.status(400).json({ success: false, message: 'User not found' })
+      return
+    }
+    if (user.isVerified) {
+      res.status(400).json({ success: false, message: 'User already verified' })
+      return
+    }
+    if (user.verificationCode !== code) {
+      res
+        .status(400)
+        .json({ success: false, message: 'Invalid verification code' })
+      return
+    }
+    user.isVerified = true
+    user.verificationCode = undefined
+    await user.save()
+    res
+      .status(200)
+      .json({ success: true, message: 'Email verified successfully' })
+  } catch (error: unknown) {
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: (error as Error).message,
+    })
+  }
+}
+
+// Reset Password
+export const resetPassword = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { token, email, password } = req.body
+    if (!token || !email || !password) {
+      res
+        .status(400)
+        .json({
+          success: false,
+          message: 'Token, email, and new password are required',
+        })
+      return
+    }
+    const user = await User.findOne({
+      email,
+      resetPasswordExpires: { $gt: new Date() },
+    })
+    if (!user || !user.resetPasswordToken) {
+      res
+        .status(400)
+        .json({ success: false, message: 'Invalid or expired token' })
+      return
+    }
+    const isTokenValid = await bcrypt.compare(token, user.resetPasswordToken)
+    if (!isTokenValid) {
+      res
+        .status(400)
+        .json({ success: false, message: 'Invalid or expired token' })
+      return
+    }
+    user.password = await bcrypt.hash(password, 10)
+    user.resetPasswordToken = undefined
+    user.resetPasswordExpires = undefined
+    await user.save()
+    res
+      .status(200)
+      .json({ success: true, message: 'Password has been reset successfully' })
+  } catch (error: unknown) {
+    res.status(500).json({
+      success: false,
       message: 'Internal server error',
       error: (error as Error).message,
     })
