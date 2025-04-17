@@ -5,7 +5,7 @@ import cloudinary from '../utils/cloudinary'
 export const createBlog = async (req: Request, res: Response) => {
   try {
     let imageUrl = ''
-    if (req.file && req.file.buffer) {
+    if (req.file) {
       imageUrl = (await new Promise((resolve, reject) => {
         const stream = cloudinary.uploader.upload_stream(
           { resource_type: 'image' },
@@ -14,7 +14,7 @@ export const createBlog = async (req: Request, res: Response) => {
             resolve(result?.secure_url || '')
           }
         )
-        stream.end(req.file.buffer)
+        stream.end((req.file as Express.Multer.File).buffer)
       })) as string
     }
     const blog = new Blog({
