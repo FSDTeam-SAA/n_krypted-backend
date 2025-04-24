@@ -3,6 +3,7 @@ import authRoutes from './routes/auth.routes'
 import newsletterRoutes from './routes/newsletter.routes'
 import reviewRoutes from './routes/review.routes'
 import blogsRoutes from './routes/blog.routes'
+import categoryRoutes from './routes/category.routes'
 import errorMiddleware from './middlewares/error.middleware'
 
 const app = express()
@@ -10,9 +11,10 @@ const app = express()
 app.use(express.json())
 
 app.use('/api/auth', authRoutes)
-app.use('/api/newsletter', newsletterRoutes)
-app.use('/api/reviews', reviewRoutes)
-app.use('/api/blog', blogsRoutes)
+app.use('/api', newsletterRoutes)
+app.use('/api', reviewRoutes)
+app.use('/api', blogsRoutes)
+app.use('/api', categoryRoutes)
 
 app.use(errorMiddleware)
 

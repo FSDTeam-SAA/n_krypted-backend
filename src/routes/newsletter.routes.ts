@@ -9,15 +9,15 @@ import {
 const router = express.Router()
 
 // Subscribe to newsletter
-router.post('/subscribe', subscribe)
+router.post('/newsletter/subscribe', subscribe)
 
 // Unsubscribe from newsletter
-router.post('/unsubscribe', unsubscribe)
+router.post('/newsletter/unsubscribe', unsubscribe)
 
 // List all subscribers (admin only)
-router.get('/subscribers', listSubscribers)
+router.get('/newsletter/subscribers', listSubscribers)
 
 // Send newsletter to all subscribers
-router.post('/send', sendNewsletter)
+router.post('/newsletter/send', sendNewsletter)
 
 export default router

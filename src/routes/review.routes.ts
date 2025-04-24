@@ -11,12 +11,12 @@ import protect from '../middlewares/auth.middleware'
 const router = express.Router()
 
 // Create a review
-router.post('/', protect, asyncHandler(createReview))
+router.post('/reviews', protect, asyncHandler(createReview))
 // Get all reviews for a deal
-router.get('/deal/:dealID', asyncHandler(getReviewsByDeal))
+router.get('/reviews/deal/:dealID', asyncHandler(getReviewsByDeal))
 // Update a review
-router.put('/:id', protect, asyncHandler(updateReview))
+router.put('/reviews/:id', protect, asyncHandler(updateReview))
 // Delete a review
-router.delete('/:id', protect, asyncHandler(deleteReview))
+router.delete('/reviews/:id', protect, asyncHandler(deleteReview))
 
 export default router
