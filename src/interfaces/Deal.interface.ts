@@ -4,6 +4,7 @@ export interface IDeal {
   participations: number
   price: number
   location: string
-  images: string[] 
+  images: string[]
   offers?: string[]
+  status: 'activate'| 'deactivate' 
 }

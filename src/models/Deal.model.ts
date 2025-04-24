@@ -10,6 +10,7 @@ const DealSchema = new Schema<IDeal>(
     location: { type: String, required: true },
     images: [{ type: String }],
     offers: [{ type: String }],
+    status: { type: String,  enum:['activate', 'deactivate'] }
   },
   { timestamps: true }
 )
