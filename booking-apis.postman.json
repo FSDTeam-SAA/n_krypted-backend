@@ -1,0 +1,162 @@
+{
+	"info": {
+		"name": "N-Krypted Booking APIs",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Create Booking",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{token}}",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"dealsId\": \"YOUR_DEAL_ID\",\n    \"notifyMe\": false\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/bookings",
+					"host": ["{{baseUrl}}"],
+					"path": ["api", "bookings"]
+				}
+			}
+		},
+		{
+			"name": "Get Bookings (NotifyMe: false)",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{token}}",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "{{baseUrl}}/api/bookings/notify-false",
+					"host": ["{{baseUrl}}"],
+					"path": ["api", "bookings", "notify-false"]
+				}
+			}
+		},
+		{
+			"name": "Get Bookings (NotifyMe: true)",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{token}}",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "{{baseUrl}}/api/bookings/notify-true",
+					"host": ["{{baseUrl}}"],
+					"path": ["api", "bookings", "notify-true"]
+				}
+			}
+		},
+		{
+			"name": "Get Single Booking",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{token}}",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "{{baseUrl}}/api/bookings/:id",
+					"host": ["{{baseUrl}}"],
+					"path": ["api", "bookings", ":id"],
+					"variable": [
+						{
+							"key": "id",
+							"value": "BOOKING_ID"
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "Update Booking",
+			"request": {
+				"method": "PUT",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{token}}",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"notifyMe\": true\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/bookings/:id",
+					"host": ["{{baseUrl}}"],
+					"path": ["api", "bookings", ":id"],
+					"variable": [
+						{
+							"key": "id",
+							"value": "BOOKING_ID"
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "Delete Booking",
+			"request": {
+				"method": "DELETE",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{token}}",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "{{baseUrl}}/api/bookings/:id",
+					"host": ["{{baseUrl}}"],
+					"path": ["api", "bookings", ":id"],
+					"variable": [
+						{
+							"key": "id",
+							"value": "BOOKING_ID"
+						}
+					]
+				}
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:5000"
+		},
+		{
+			"key": "token",
+			"value": "YOUR_JWT_TOKEN"
+		}
+	]
+}
