@@ -1,6 +1,7 @@
 import { Request, Response } from 'express'
 import Deal from '../models/Deal.model'
 import cloudinary from '../utils/cloudinary'
+import mongoose from 'mongoose'
 
 // Create a new deal
 export const createDeal = async (
@@ -8,8 +9,16 @@ export const createDeal = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { title, description, price, location, offers } = req.body
+    const { title, description, price, location, offers, category } = req.body
     let images: string[] = []
+
+    if (!category) {
+      res.status(400).json({
+        success: false,
+        message: 'Category is required',
+      })
+      return
+    }
 
     if (req.files && Array.isArray(req.files)) {
       const uploadPromises = (req.files as Express.Multer.File[]).map(
@@ -36,10 +45,14 @@ export const createDeal = async (
       images,
       offers: offers || [],
       status: 'activate',
+      category: new mongoose.Types.ObjectId(category),
     })
 
     await deal.save()
-    res.status(201).json({ success: true, deal })
+
+    // Populate the category information before sending response
+    const populatedDeal = await Deal.findById(deal._id).populate('category')
+    res.status(201).json({ success: true, deal: populatedDeal })
   } catch (error: any) {
     res.status(500).json({
       success: false,
@@ -55,7 +68,7 @@ export const getAllDeals = async (
   res: Response
 ): Promise<void> => {
   try {
-    const deals = await Deal.find().sort({ createdAt: -1 })
+    const deals = await Deal.find().populate('category').sort({ createdAt: -1 })
     res.status(200).json({ success: true, deals })
   } catch (error: any) {
     res.status(500).json({
@@ -73,7 +86,7 @@ export const getSingleDeal = async (
 ): Promise<void> => {
   try {
     const { id } = req.params
-    const deal = await Deal.findById(id)
+    const deal = await Deal.findById(id).populate('category')
 
     if (!deal) {
       res.status(404).json({ success: false, message: 'Deal not found' })
@@ -124,6 +137,10 @@ export const updateDeal = async (
     const updateData = { ...req.body }
     let images: string[] = updateData.images || []
 
+    if (updateData.category) {
+      updateData.category = new mongoose.Types.ObjectId(updateData.category)
+    }
+
     if (req.files && Array.isArray(req.files)) {
       const uploadPromises = (req.files as Express.Multer.File[]).map(
         (file) =>
@@ -146,7 +163,7 @@ export const updateDeal = async (
       id,
       { ...updateData, images },
       { new: true }
-    )
+    ).populate('category')
 
     if (!deal) {
       res.status(404).json({ success: false, message: 'Deal not found' })
@@ -163,29 +180,32 @@ export const updateDeal = async (
   }
 }
 
-// Change deal status
+// Change deal status (Toggle between activate and deactivate)
 export const changeDealStatus = async (
   req: Request,
   res: Response
 ): Promise<void> => {
   try {
     const { id } = req.params
-    const { status } = req.body
 
-    if (!['activate', 'deactivate'].includes(status)) {
-      res.status(400).json({
-        success: false,
-        message: 'Invalid status. Must be either "activate" or "deactivate"',
-      })
-      return
-    }
+    // First find the current deal to get its status
+    const currentDeal = await Deal.findById(id)
 
-    const deal = await Deal.findByIdAndUpdate(id, { status }, { new: true })
-
-    if (!deal) {
+    if (!currentDeal) {
       res.status(404).json({ success: false, message: 'Deal not found' })
       return
     }
+
+    // Toggle the status
+    const newStatus =
+      currentDeal.status === 'activate' ? 'deactivate' : 'activate'
+
+    // Update with the new status and populate category
+    const deal = await Deal.findByIdAndUpdate(
+      id,
+      { status: newStatus },
+      { new: true }
+    ).populate('category')
 
     res.status(200).json({ success: true, deal })
   } catch (error: any) {

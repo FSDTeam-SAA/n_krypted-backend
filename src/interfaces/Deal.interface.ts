@@ -1,3 +1,5 @@
+import { Types } from 'mongoose';
+
 export interface IDeal {
   title: string
   description: string
@@ -6,5 +8,6 @@ export interface IDeal {
   location: string
   images: string[]
   offers?: string[]
-  status: 'activate'| 'deactivate' 
+  status: 'activate' | 'deactivate'
+  category: Types.ObjectId
 }

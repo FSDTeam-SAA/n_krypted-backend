@@ -1,4 +1,4 @@
-import { Schema, model } from 'mongoose'
+import mongoose, { Schema, model } from 'mongoose'
 import { IDeal } from '../interfaces/Deal.interface'
 
 const DealSchema = new Schema<IDeal>(
@@ -10,7 +10,8 @@ const DealSchema = new Schema<IDeal>(
     location: { type: String, required: true },
     images: [{ type: String }],
     offers: [{ type: String }],
-    status: { type: String,  enum:['activate', 'deactivate'] }
+    status: { type: String, enum: ['activate', 'deactivate'] },
+    category: { type: mongoose.Schema.Types.ObjectId },
   },
   { timestamps: true }
 )

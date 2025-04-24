@@ -8,7 +8,7 @@ const router = Router()
 // Create a new deal
 router.post(
   '/deals',
-  protect,
+  
   upload.array('images'),
   dealController.createDeal
 )
@@ -22,15 +22,14 @@ router.get('/deals/:id', dealController.getSingleDeal)
 // Update a deal
 router.put(
   '/deals/:id',
-  protect,
   upload.array('images'),
   dealController.updateDeal
 )
 
 // Delete a deal
-router.delete('/deals/:id', protect, dealController.deleteDeal)
+router.delete('/deals/:id',  dealController.deleteDeal)
 
 // Change deal status
-router.patch('/deals/:id/status', protect, dealController.changeDealStatus)
+router.patch('/deals/:id/status',  dealController.changeDealStatus)
 
 export default router
