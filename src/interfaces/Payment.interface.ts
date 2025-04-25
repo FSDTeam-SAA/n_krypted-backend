@@ -3,7 +3,12 @@ import { Types } from 'mongoose'
 export interface IPaymentInfo {
   userId: Types.ObjectId
   bookingId: Types.ObjectId
-  price: Number
-  paymentStatus: 'complete' | 'padding' | 'failed'
-  seasonId: string
+  price: number
+  paymentStatus: 'complete' | 'pending' | 'failed'
+  seasonId?: string
+  transactionId?: string
+  paymentMethodNonce?: string
+  paymentMethod?: string
+  createdAt: Date
+  updatedAt: Date
 }
