@@ -33,12 +33,17 @@ export const generateClientToken = asyncHandler(
 export const paymentCheckOut = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
     try {
-      const { amount, paymentMethodNonce, deviceData, bookingId, seasonId } =
-        req.body
-      const userId = req.user?.id
+      const {
+        amount,
+        paymentMethodNonce,
+        deviceData,
+        bookingId,
+        seasonId,
+        userId,
+      } = req.body
 
       // Validate request body
-      if (!amount || !paymentMethodNonce || !bookingId) {
+      if (!amount || !paymentMethodNonce || !bookingId || !userId) {
         res.status(400).json({
           success: false,
           error: 'Amount, payment method nonce, and booking ID are required',
