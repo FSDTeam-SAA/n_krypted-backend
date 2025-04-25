@@ -68,7 +68,46 @@ export const getAllDeals = async (
   res: Response
 ): Promise<void> => {
   try {
-    const deals = await Deal.find().populate('category').sort({ createdAt: -1 })
+    const { categoryName, minPrice, maxPrice, location } = req.query
+
+    // Build filter object
+    const filter: any = {}
+
+    // Filter by location if provided (case-insensitive partial match)
+    if (location) {
+      filter.location = { $regex: location as string, $options: 'i' }
+    }
+
+    // Filter by price range if provided
+    if (minPrice || maxPrice) {
+      filter.price = {}
+      if (minPrice) filter.price.$gte = Number(minPrice)
+      if (maxPrice) filter.price.$lte = Number(maxPrice)
+    }
+
+    // First get base query
+    let query = Deal.find(filter)
+
+    // Add category name filter if provided
+    if (categoryName) {
+      query = query.populate({
+        path: 'category',
+        match: {
+          categoryName: { $regex: categoryName as string, $options: 'i' },
+        },
+      })
+    } else {
+      query = query.populate('category')
+    }
+
+    // Execute query and sort by creation date
+    let deals = await query.sort({ createdAt: -1 })
+
+    // If category name filter was applied, filter out null categories
+    if (categoryName) {
+      deals = deals.filter((deal) => deal.category !== null)
+    }
+
     res.status(200).json({ success: true, deals })
   } catch (error: any) {
     res.status(500).json({
