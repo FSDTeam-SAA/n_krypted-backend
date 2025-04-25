@@ -10,6 +10,7 @@ import dealRoutes from './routes/deal.routes'
 import bookingRoutes from './routes/booking.routes'
 import errorMiddleware from './middlewares/error.middleware'
 import paymentRoutes from './routes/payment.routes'
+import feedbackRoutes from './routes/feedback.routes'
 
 const app = express()
 
@@ -43,6 +44,7 @@ app.use('/api', categoryRoutes)
 app.use('/api', dealRoutes)
 app.use('/api', bookingRoutes)
 app.use('/api', paymentRoutes)
+app.use('/api', feedbackRoutes)
 
 app.use(errorMiddleware)
 
