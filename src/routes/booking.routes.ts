@@ -1,6 +1,5 @@
 import { Router } from 'express'
 import * as bookingController from '../controllers/Booking.controller'
-import protect from '../middlewares/auth.middleware'
 
 const router = Router()
 

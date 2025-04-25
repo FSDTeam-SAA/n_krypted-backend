@@ -1,6 +1,5 @@
 import { Request, Response } from 'express'
 import Booking from '../models/Booking.model'
-import mongoose from 'mongoose'
 import crypto from 'crypto'
 
 // Create a booking
@@ -42,12 +41,13 @@ export const getBookingsNotifyFalse = async (
   res: Response
 ): Promise<void> => {
   try {
-    const userId = req.user?.id
+    const userId = req.query.user
+    console.log('userID__', userId)
     const bookings = await Booking.find({ userId, notifyMe: false })
       .populate('dealsId')
       .sort({ createdAt: -1 })
 
-    res.status(200).json({ success: true, bookings })
+    res.status(200).json({ success: true, data: bookings })
   } catch (error: any) {
     res.status(500).json({
       success: false,
@@ -63,12 +63,13 @@ export const getBookingsNotifyTrue = async (
   res: Response
 ): Promise<void> => {
   try {
-    const userId = req.user?.id
+    const userId = req.query.user
+    console.log('userId__', userId)
     const bookings = await Booking.find({ userId, notifyMe: true })
       .populate('dealsId')
       .sort({ createdAt: -1 })
 
-    res.status(200).json({ success: true, bookings })
+    res.status(200).json({ success: true, data: bookings })
   } catch (error: any) {
     res.status(500).json({
       success: false,
@@ -85,6 +86,7 @@ export const getSingleBooking = async (
 ): Promise<void> => {
   try {
     const { id } = req.params
+    console.log('first', id)
     const booking = await Booking.findById(id).populate('dealsId')
 
     if (!booking) {
@@ -92,18 +94,7 @@ export const getSingleBooking = async (
       return
     }
 
-    // Check if the booking belongs to the logged-in user
-    if (booking.userId.toString() !== req.user?.id) {
-      res
-        .status(403)
-        .json({
-          success: false,
-          message: 'Not authorized to view this booking',
-        })
-      return
-    }
-
-    res.status(200).json({ success: true, booking })
+    res.status(200).json({ success: true, data: booking })
   } catch (error: any) {
     res.status(500).json({
       success: false,
@@ -126,17 +117,6 @@ export const updateBooking = async (
 
     if (!booking) {
       res.status(404).json({ success: false, message: 'Booking not found' })
-      return
-    }
-
-    // Check if the booking belongs to the logged-in user
-    if (booking.userId.toString() !== req.user?.id) {
-      res
-        .status(403)
-        .json({
-          success: false,
-          message: 'Not authorized to update this booking',
-        })
       return
     }
 
@@ -167,17 +147,6 @@ export const deleteBooking = async (
 
     if (!booking) {
       res.status(404).json({ success: false, message: 'Booking not found' })
-      return
-    }
-
-    // Check if the booking belongs to the logged-in user
-    if (booking.userId.toString() !== req.user?.id) {
-      res
-        .status(403)
-        .json({
-          success: false,
-          message: 'Not authorized to delete this booking',
-        })
       return
     }
 
