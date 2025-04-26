@@ -5,7 +5,9 @@ import {
   forgotPassword,
   verifyCode,
   resetPassword,
+  changePassword,
 } from '../controllers/Auth.controller'
+import protect from '../middlewares/auth.middleware'
 
 const router = express.Router()
 
@@ -23,5 +25,8 @@ router.post('/verify', verifyCode)
 
 // Reset Password
 router.post('/reset-password', resetPassword)
+
+// Change Password (Protected Route)
+router.post('/change-password',  changePassword)
 
 export default router

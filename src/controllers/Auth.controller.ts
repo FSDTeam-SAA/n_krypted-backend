@@ -81,7 +81,7 @@ export const login = async (req: Request, res: Response) => {
       expiresIn: '50h',
     })
 
-    res.status(200).json({ success: true, token: token })
+    res.status(200).json({ success: true, data: user, token: token })
   } catch (error: unknown) {
     res.status(500).json({
       success: false,
@@ -102,11 +102,9 @@ export const forgotPassword = async (
     const user = await User.findOne({ email })
     // Always respond with success to prevent email enumeration
     if (!user) {
-      res
-        .status(200)
-        .json({
-          message: 'If that email is registered, a reset link has been sent.',
-        })
+      res.status(200).json({
+        message: 'If that email is registered, a reset link has been sent.',
+      })
       return
     }
 
@@ -127,11 +125,9 @@ export const forgotPassword = async (
       `You requested a password reset. Click the link to reset your password: ${resetUrl}`
     )
 
-    res
-      .status(200)
-      .json({
-        message: 'If that email is registered, a reset link has been sent.',
-      })
+    res.status(200).json({
+      message: 'If that email is registered, a reset link has been sent.',
+    })
   } catch (error: unknown) {
     res.status(500).json({
       message: 'Internal server error',
@@ -185,12 +181,10 @@ export const resetPassword = async (
   try {
     const { token, email, password } = req.body
     if (!token || !email || !password) {
-      res
-        .status(400)
-        .json({
-          success: false,
-          message: 'Token, email, and new password are required',
-        })
+      res.status(400).json({
+        success: false,
+        message: 'Token, email, and new password are required',
+      })
       return
     }
     const user = await User.findOne({
@@ -217,6 +211,45 @@ export const resetPassword = async (
     res
       .status(200)
       .json({ success: true, message: 'Password has been reset successfully' })
+  } catch (error: unknown) {
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: (error as Error).message,
+    })
+  }
+}
+
+// Change Password
+export const changePassword = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { currentPassword, newPassword, userId } = req.body
+
+    const user = await User.findById(userId)
+    if (!user) {
+      res.status(404).json({ success: false, message: 'User not found' })
+      return
+    }
+
+    const isMatch = await bcrypt.compare(currentPassword, user.password)
+    if (!isMatch) {
+      res
+        .status(400)
+        .json({ success: false, message: 'Current password is incorrect' })
+      return
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10)
+    user.password = hashedPassword
+    await user.save()
+
+    res.status(200).json({
+      success: true,
+      message: 'Password changed successfully',
+    })
   } catch (error: unknown) {
     res.status(500).json({
       success: false,

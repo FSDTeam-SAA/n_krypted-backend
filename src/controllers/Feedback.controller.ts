@@ -7,9 +7,9 @@ export const createFeedback = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { name, email, phoneNumber, message } = req.body
+    const { name, email, phoneNumber, subject, message } = req.body
 
-    if (!name || !email || !phoneNumber || !message) {
+    if ( !email || !message) {
       res
         .status(400)
         .json({ success: false, message: 'All fields are required' })
@@ -21,6 +21,7 @@ export const createFeedback = async (
       email,
       phoneNumber,
       message,
+      subject,
     })
 
     res.status(201).json({ success: true, feedback })
