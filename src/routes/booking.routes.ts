@@ -6,17 +6,17 @@ const router = Router()
 // Create a new booking
 router.post('/bookings', bookingController.createBooking)
 
+// Get all bookings
+router.get('/bookings', bookingController.getAllBookings)
+
+// Get all booked bookings notifyMe
+router.get('/bookings/booked', bookingController.getBookedBookings)
+
 // Get bookings by userId where notifyMe is false
-router.get(
-  '/bookings/notify-false',
-  bookingController.getBookingsNotifyFalse
-)
+router.get('/bookings/notify-false', bookingController.getBookingsNotifyFalse)
 
 // Get bookings by userId where notifyMe is true
-router.get(
-  '/bookings/notify-true',
-  bookingController.getBookingsNotifyTrue
-)
+router.get('/bookings/notify-true', bookingController.getBookingsNotifyTrue)
 
 // Get single booking
 router.get('/bookings/:id', bookingController.getSingleBooking)

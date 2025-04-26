@@ -79,6 +79,26 @@ export const getBookingsNotifyTrue = async (
   }
 }
 
+// Get all bookings
+export const getAllBookings = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const bookings = await Booking.find()
+      .populate('dealsId')
+      .sort({ createdAt: -1 })
+
+    res.status(200).json({ success: true, data: bookings })
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch all bookings',
+      error: error.message,
+    })
+  }
+}
+
 // Get single booking
 export const getSingleBooking = async (
   req: Request,
@@ -158,6 +178,31 @@ export const deleteBooking = async (
     res.status(500).json({
       success: false,
       message: 'Failed to delete booking',
+      error: error.message,
+    })
+  }
+}
+
+// Get all booked bookings (notifyMe: true)
+export const getBookedBookings = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const bookings = await Booking.find({ notifyMe: true })
+      .populate('dealsId')
+      .populate('userId', 'name email phoneNumber')
+      .sort({ createdAt: -1 })
+
+    res.status(200).json({ 
+      success: true, 
+      count: bookings.length,
+      data: bookings 
+    })
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch booked bookings',
       error: error.message,
     })
   }
