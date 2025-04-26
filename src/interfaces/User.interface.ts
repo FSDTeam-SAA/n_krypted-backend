@@ -7,4 +7,6 @@ export interface IUser {
   isVerified?: boolean
   resetPasswordToken?: string
   resetPasswordExpires?: Date
+  country?: String
+  cityState?: String
 }

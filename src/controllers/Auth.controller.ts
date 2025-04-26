@@ -258,3 +258,44 @@ export const changePassword = async (
     })
   }
 }
+
+// Update User Information
+export const updateUser = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { name, phoneNumber, userId, country, cityState } = req.body
+
+    if (!userId) {
+      res.status(400).json({ success: false, message: 'User ID is required' })
+      return
+    }
+
+    const user = await User.findById(userId)
+    if (!user) {
+      res.status(404).json({ success: false, message: 'User not found' })
+      return
+    }
+
+    // Update user fields
+    if (name) user.name = name
+    if (phoneNumber) user.phoneNumber = phoneNumber
+    if (country) user.country = country
+    if (cityState) user.cityState = cityState
+
+    await user.save()
+
+    res.status(200).json({
+      success: true,
+      message: 'User information updated successfully',
+      data: user,
+    })
+  } catch (error: unknown) {
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: (error as Error).message,
+    })
+  }
+}

@@ -6,6 +6,7 @@ import {
   verifyCode,
   resetPassword,
   changePassword,
+  updateUser,
 } from '../controllers/Auth.controller'
 import protect from '../middlewares/auth.middleware'
 
@@ -27,6 +28,9 @@ router.post('/verify', verifyCode)
 router.post('/reset-password', resetPassword)
 
 // Change Password (Protected Route)
-router.post('/change-password',  changePassword)
+router.post('/change-password', changePassword)
+
+// Update User Information (Protected Route)
+router.put('/update-profile', updateUser)
 
 export default router
