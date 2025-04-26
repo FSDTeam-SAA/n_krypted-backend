@@ -2,6 +2,9 @@ import { Request, Response, NextFunction } from 'express'
 import { gateway } from '../config/paypalBraintree'
 import { PaymentInfo } from '../models/PaymentInfo.model'
 import asyncHandler from '../utils/asyncHandler'
+import Booking from '../models/Booking.model'
+import User from '../models/User.model'
+import Deal from '../models/Deal.model'
 
 // JSON validation middleware
 const validateJsonBody = (
@@ -119,6 +122,86 @@ export const paymentCheckOut = asyncHandler(
       res.status(500).json({
         success: false,
         error: 'Internal server error',
+      })
+    }
+  }
+)
+
+// Get total revenue
+export const getTotalRevenue = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const payments = await PaymentInfo.find({ paymentStatus: 'complete' })
+      const totalRevenue = payments.reduce(
+        (acc, payment) => acc + payment.price,
+        0
+      )
+
+      res.status(200).json({
+        success: true,
+        totalRevenue,
+      })
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: 'Error fetching total revenue',
+      })
+    }
+  }
+)
+
+// Get total bookings count
+export const getTotalBookings = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const totalBookings = await Booking.countDocuments({ isBooked: true })
+
+      res.status(200).json({
+        success: true,
+        totalBookings,
+      })
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: 'Error fetching total bookings',
+      })
+    }
+  }
+)
+
+// Get total customers count
+export const getTotalCustomers = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const totalCustomers = await User.countDocuments()
+
+      res.status(200).json({
+        success: true,
+        totalCustomers,
+      })
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: 'Error fetching total customers',
+      })
+    }
+  }
+)
+
+// Get total deals count
+export const getTotalDeals = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const totalDeals = await Deal.countDocuments()
+
+      res.status(200).json({
+        success: true,
+        totalDeals,
+      })
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: 'Error fetching total deals',
       })
     }
   }
