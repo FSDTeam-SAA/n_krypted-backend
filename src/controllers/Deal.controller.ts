@@ -2,6 +2,7 @@ import { Request, Response } from 'express'
 import Deal from '../models/Deal.model'
 import cloudinary from '../utils/cloudinary'
 import mongoose from 'mongoose'
+import { notifyNewDeal, notifyDealStatusChange } from '../server'
 
 // Create a new deal
 export const createDeal = async (
@@ -52,6 +53,10 @@ export const createDeal = async (
 
     // Populate the category information before sending response
     const populatedDeal = await Deal.findById(deal._id).populate('category')
+    
+    // Notify all users about the new deal
+    notifyNewDeal(populatedDeal)
+
     res.status(201).json({ success: true, deal: populatedDeal })
   } catch (error: any) {
     res.status(500).json({
@@ -245,6 +250,14 @@ export const changeDealStatus = async (
       { status: newStatus },
       { new: true }
     ).populate('category')
+
+    try {
+      // Notify users who have notifyMe true for this deal
+      await notifyDealStatusChange(id, newStatus)
+    } catch (notificationError) {
+      console.error('Failed to send notifications:', notificationError)
+      // Continue with the response even if notification fails
+    }
 
     res.status(200).json({ success: true, deal })
   } catch (error: any) {

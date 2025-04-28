@@ -30,6 +30,6 @@ router.put(
 router.delete('/deals/:id',  dealController.deleteDeal)
 
 // Change deal status
-router.patch('/deals/:id/status',  dealController.changeDealStatus)
+router.put('/deals/:id/status',  dealController.changeDealStatus)
 
 export default router

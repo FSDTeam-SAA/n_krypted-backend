@@ -11,6 +11,7 @@ import bookingRoutes from './routes/booking.routes'
 import errorMiddleware from './middlewares/error.middleware'
 import paymentRoutes from './routes/payment.routes'
 import feedbackRoutes from './routes/feedback.routes'
+import notificationRoutes from './routes/notification.routes'
 
 const app = express()
 
@@ -34,8 +35,6 @@ app.use(
   })
 )
 
-app.use(express.json())
-
 app.use('/api/auth', authRoutes)
 app.use('/api', newsletterRoutes)
 app.use('/api', reviewRoutes)
@@ -45,6 +44,7 @@ app.use('/api', dealRoutes)
 app.use('/api', bookingRoutes)
 app.use('/api', paymentRoutes)
 app.use('/api', feedbackRoutes)
+app.use('/api', notificationRoutes)
 
 app.use(errorMiddleware)
 
