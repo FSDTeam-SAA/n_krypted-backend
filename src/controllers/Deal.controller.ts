@@ -69,12 +69,75 @@ export const createDeal = async (
 }
 
 // Get all deals
+// export const getAllDeals = async (
+//   req: Request,
+//   res: Response
+// ): Promise<void> => {
+//   try {
+//     const { categoryName, minPrice, maxPrice, location } = req.query
+
+//     // Build filter object
+//     const filter: any = {}
+
+//     // Filter by location if provided (case-insensitive partial match)
+//     if (location) {
+//       filter.location = { $regex: location as string, $options: 'i' }
+//     }
+
+//     // Filter by price range if provided
+//     if (minPrice || maxPrice) {
+//       filter.price = {}
+//       if (minPrice) filter.price.$gte = Number(minPrice)
+//       if (maxPrice) filter.price.$lte = Number(maxPrice)
+//     }
+
+//     // First get base query
+//     let query = Deal.find(filter)
+
+//     // Add category name filter if provided
+//     if (categoryName) {
+//       query = query.populate({
+//         path: 'category',
+//         match: {
+//           categoryName: { $regex: categoryName as string, $options: 'i' },
+//         },
+//       })
+//     } else {
+//       query = query.populate('category')
+//     }
+
+//     // Execute query and sort by creation date
+//     let deals = await query.sort({ createdAt: -1 })
+
+//     // If category name filter was applied, filter out null categories
+//     if (categoryName) {
+//       deals = deals.filter((deal) => deal.category !== null)
+//     }
+
+//     res.status(200).json({ success: true, deals })
+//   } catch (error: any) {
+//     res.status(500).json({
+//       success: false,
+//       message: 'Failed to fetch deals',
+//       error: error.message,
+//     })
+//   }
+// }
+
+// Get all deals
 export const getAllDeals = async (
   req: Request,
   res: Response
 ): Promise<void> => {
   try {
-    const { categoryName, minPrice, maxPrice, location } = req.query
+    const { categoryName, minPrice, maxPrice, location, page = 1, limit = 10 } = req.query
+    
+    // Convert pagination parameters to numbers
+    const pageNumber = parseInt(page as string, 10) || 1
+    const itemsPerPage = parseInt(limit as string, 10) || 10
+    
+    // Calculate skip value for pagination
+    const skip = (pageNumber - 1) * itemsPerPage
 
     // Build filter object
     const filter: any = {}
@@ -106,15 +169,55 @@ export const getAllDeals = async (
       query = query.populate('category')
     }
 
-    // Execute query and sort by creation date
-    let deals = await query.sort({ createdAt: -1 })
+    // Count total documents for pagination before applying skip/limit
+    const totalItems = await Deal.countDocuments(filter)
+    
+    // Apply pagination to query
+    query = query.skip(skip).limit(itemsPerPage).sort({ createdAt: -1 })
+
+    // Execute query
+    let deals = await query
 
     // If category name filter was applied, filter out null categories
     if (categoryName) {
       deals = deals.filter((deal) => deal.category !== null)
+      
+      // Recalculate total items if we filtered by category name
+      // since MongoDB's countDocuments won't account for the post-query filtering
+      const filteredTotalItems = deals.length + skip
+      const totalPages = Math.ceil(filteredTotalItems / itemsPerPage)
+      
+      const pagination: MetaPagination = {
+        currentPage: pageNumber,
+        totalPages,
+        totalItems: filteredTotalItems,
+        itemsPerPage
+      }
+      
+      res.status(200).json({ 
+        success: true, 
+        deals,
+        pagination
+      })
+      return
+    }
+    
+    // Calculate total pages
+    const totalPages = Math.ceil(totalItems / itemsPerPage)
+    
+    // Create pagination metadata
+    const pagination: MetaPagination = {
+      currentPage: pageNumber,
+      totalPages,
+      totalItems,
+      itemsPerPage
     }
 
-    res.status(200).json({ success: true, deals })
+    res.status(200).json({ 
+      success: true, 
+      deals,
+      pagination
+    })
   } catch (error: any) {
     res.status(500).json({
       success: false,
@@ -123,6 +226,16 @@ export const getAllDeals = async (
     })
   }
 }
+
+export type MetaPagination = {
+  currentPage: number;
+  totalPages: number;
+  totalItems: number;
+  itemsPerPage: number;
+};
+
+
+
 
 // Get a single deal
 export const getSingleDeal = async (
