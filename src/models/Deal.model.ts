@@ -11,7 +11,7 @@ const DealSchema = new Schema<IDeal>(
     images: [{ type: String }],
     offers: [{ type: String }],
     status: { type: String, enum: ['activate', 'deactivate'] },
-    category: { type: mongoose.Schema.Types.ObjectId },
+    category: { type: mongoose.Schema.Types.ObjectId, ref: 'Category' },
   },
   { timestamps: true }
 )
