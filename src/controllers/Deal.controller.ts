@@ -4,8 +4,9 @@ import cloudinary from '../utils/cloudinary'
 import mongoose from 'mongoose'
 import { io } from '../server'
 import { notifyNewDeal, notifyDealStatusChange } from '../socket/socket'
+import Category from '../models/Category.model'
 
-// Create a new deal
+
 export const createDeal = async (
   req: Request,
   res: Response
