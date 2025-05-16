@@ -1,19 +1,65 @@
 import { Request, Response } from 'express'
 import Category from '../models/Category.model'
 import cloudinary from '../utils/cloudinary'
-
+import Deal from '../models/Deal.model'
 // Get all categories
-export const getAllCategories = async (
+
+export const getAllCategoriesWithDealCounts = async (
   req: Request,
   res: Response
 ): Promise<void> => {
   try {
-    const categories = await Category.find().sort({ createdAt: -1 })
-    res.status(200).json({ success: true, categories })
+    // Pagination
+    const page = parseInt(req.query.page as string) || 1
+    const limit = parseInt(req.query.limit as string) || 10
+    const skip = (page - 1) * limit
+
+    const totalItems = await Category.countDocuments()
+    const totalPages = Math.ceil(totalItems / limit)
+
+    // Fetch paginated categories
+    const categories = await Category.find()
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean()
+
+    // Get deal counts grouped by category
+    const dealCounts = await Deal.aggregate([
+      {
+        $group: {
+          _id: '$category',
+          count: { $sum: 1 },
+        },
+      },
+    ])
+
+    // Map deal counts to categories
+    const countsMap = dealCounts.reduce((acc, curr) => {
+      acc[curr._id?.toString()] = curr.count
+      return acc
+    }, {} as Record<string, number>)
+
+    // Add dealCount to each category
+    const categoriesWithCounts = categories.map((cat) => ({
+      ...cat,
+      dealCount: countsMap[cat._id.toString()] || 0,
+    }))
+
+    res.status(200).json({
+      success: true,
+      data: categoriesWithCounts,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalItems,
+        itemsPerPage: limit,
+      },
+    })
   } catch (error: any) {
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch categories',
+      message: 'Failed to fetch categories with deal counts',
       error: error.message,
     })
   }

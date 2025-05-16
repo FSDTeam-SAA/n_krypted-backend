@@ -4,7 +4,7 @@ import upload from '../middlewares/multer.middleware'
 
 const router = Router()
 
-router.get('/categories', categoryController.getAllCategories)
+router.get('/categories', categoryController.getAllCategoriesWithDealCounts)
 router.post(
   '/categories',
   upload.single('image'),
