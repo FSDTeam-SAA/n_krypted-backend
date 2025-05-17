@@ -12,7 +12,7 @@ import errorMiddleware from './middlewares/error.middleware'
 import paymentRoutes from './routes/payment.routes'
 import feedbackRoutes from './routes/feedback.routes'
 import notificationRoutes from './routes/notification.routes'
-
+import authtestRoute from './routes/authtest'
 const app = express()
 
 app.use(cors())
@@ -45,6 +45,7 @@ app.use('/api', bookingRoutes)
 app.use('/api', paymentRoutes)
 app.use('/api', feedbackRoutes)
 app.use('/api', notificationRoutes)
+app.use('/api', authtestRoute)
 
 app.use(errorMiddleware)
 

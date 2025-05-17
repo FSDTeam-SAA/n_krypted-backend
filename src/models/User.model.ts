@@ -11,9 +11,9 @@ const UserSchema = new Schema<IUser>(
     isVerified: { type: Boolean, default: false },
     resetPasswordToken: { type: String },
     resetPasswordExpires: { type: Date },
-    country: { type: String},
-    cityState: { type: String }
-    
+    country: { type: String },
+    cityState: { type: String },
+    role: { type: String, enum: ['admin', 'user'], default: 'user' },
   },
   { timestamps: true }
 )

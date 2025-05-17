@@ -9,4 +9,5 @@ export interface IUser {
   resetPasswordExpires?: Date
   country?: String
   cityState?: String
+  role: String
 }
