@@ -30,17 +30,41 @@ export const createBlog = async (req: Request, res: Response) => {
   }
 }
 
+// get all blogs
 export const getBlogs = async (req: Request, res: Response) => {
   try {
-    const blogs = await Blog.find().sort({ createdAt: -1 })
-    res.json({ success: true, blogs })
+    const page = parseInt(req.query.page as string) || 1
+    const limit = parseInt(req.query.limit as string) || 10
+    const skip = (page - 1) * limit
+
+    const [blogs, totalItems] = await Promise.all([
+      Blog.find().sort({ createdAt: -1 }).skip(skip).limit(limit),
+      Blog.countDocuments(),
+    ])
+
+    const totalPages = Math.ceil(totalItems / limit)
+
+    res.json({
+      success: true,
+      blogs,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalItems,
+        itemsPerPage: limit,
+      },
+    })
   } catch (err) {
-    res
-      .status(500)
-      .json({ success: false, message: 'Failed to fetch blogs', error: err })
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch blogs',
+      error: err,
+    })
   }
 }
 
+
+// get single blogs
 export const getBlog = async (req: Request, res: Response): Promise<void> => {
   try {
     const blog = await Blog.findById(req.params.id)
