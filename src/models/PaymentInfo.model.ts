@@ -11,7 +11,7 @@ const paymentInfoSchema = new mongoose.Schema<IPaymentInfo>(
     },
     bookingId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Deal',
+      ref: 'Booking',
       required: true,
     },
     price: { type: Number, required: true },

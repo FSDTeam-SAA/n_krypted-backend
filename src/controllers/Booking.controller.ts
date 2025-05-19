@@ -1,8 +1,41 @@
 import { Request, Response } from 'express'
 import Booking from '../models/Booking.model'
 import crypto from 'crypto'
-
+import Deal  from '../models/Deal.model'
+import { PaymentInfo } from '../models/PaymentInfo.model'
 // Create a booking
+// export const createBooking = async (
+//   req: Request,
+//   res: Response
+// ): Promise<void> => {
+//   try {
+//     const { dealsId, notifyMe, userId } = req.body
+
+//     if (!dealsId) {
+//       res.status(400).json({ success: false, message: 'Deal ID is required' })
+//       return
+//     }
+
+//     const bookingId = crypto.randomBytes(5).toString('hex').toUpperCase()
+
+//     const booking = await Booking.create({
+//       userId,
+//       bookingId,
+//       dealsId,
+//       notifyMe: notifyMe || false,
+//       isBooked: true,
+//     })
+
+//     res.status(201).json({ success: true, booking })
+//   } catch (error: any) {
+//     res.status(500).json({
+//       success: false,
+//       message: 'Failed to create booking',
+//       error: error.message,
+//     })
+//   }
+// }
+
 export const createBooking = async (
   req: Request,
   res: Response
@@ -12,6 +45,12 @@ export const createBooking = async (
 
     if (!dealsId) {
       res.status(400).json({ success: false, message: 'Deal ID is required' })
+      return
+    }
+
+    const deal = await Deal.findById(dealsId)
+    if (!deal) {
+      res.status(404).json({ success: false, message: 'Deal not found' })
       return
     }
 
@@ -25,7 +64,33 @@ export const createBooking = async (
       isBooked: true,
     })
 
-    res.status(201).json({ success: true, booking })
+    // Get all booking _ids for the deal
+    const allBookings = await Booking.find({ dealsId }).select('_id')
+    const bookingIds = allBookings.map((b) => b._id)
+
+    // Count completed payments after the deal's updated time
+    const completedPaymentCount = await PaymentInfo.countDocuments({
+      bookingId: { $in: bookingIds },
+      paymentStatus: 'complete',
+      createdAt: { $gt: deal.updatedAt },
+    })
+
+    // Check and update deal status
+    if (
+      deal.participationsLimit &&
+      completedPaymentCount >= deal.participationsLimit
+    ) {
+      deal.status = 'deactivate'
+      await deal.save()
+    }
+
+    res.status(201).json({
+      success: true,
+      booking,
+      dealStatus: deal.status,
+      completedPaymentCount,
+      participationsLimit: deal.participationsLimit,
+    })
   } catch (error: any) {
     res.status(500).json({
       success: false,
