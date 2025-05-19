@@ -89,7 +89,7 @@ export const getAllDeals = async (
       minPrice,
       maxPrice,
       location,
-      dealName, 
+      title, 
       page = 1,
       limit = 10,
     } = req.query
@@ -104,8 +104,8 @@ export const getAllDeals = async (
       filter.location = { $regex: location as string, $options: 'i' }
     }
 
-    if (dealName) {
-      filter.dealName = { $regex: dealName as string, $options: 'i' }
+    if (title && (title as string).length >= 2) {
+      filter.title = { $regex: title as string, $options: 'i' }
     }
 
     if (minPrice || maxPrice) {
@@ -156,6 +156,7 @@ export const getAllDeals = async (
     })
   }
 }
+
 
 
 // Get a single deal
