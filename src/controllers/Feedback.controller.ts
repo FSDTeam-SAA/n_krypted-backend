@@ -1,7 +1,7 @@
 import { Request, Response } from 'express'
 import Feedback from '../models/Feedback.model'
 import sendEmail from '../utils/email'
-
+import User from '../models/User.model'
 // Create feedback
 export const createFeedback = async (
   req: Request,
@@ -10,13 +10,14 @@ export const createFeedback = async (
   try {
     const { name, email, phoneNumber, subject, message } = req.body
 
-    if ( !email || !message) {
+    if (!email || !message) {
       res
         .status(400)
-        .json({ success: false, message: 'All fields are required' })
+        .json({ success: false, message: 'Email and message are required' })
       return
     }
 
+    // Save feedback to DB
     const feedback = await Feedback.create({
       name,
       email,
@@ -25,12 +26,26 @@ export const createFeedback = async (
       subject,
     })
 
-    await sendEmail(
-      email,
-      feedback
-      
-    )
+    // Find admin user
+    const adminUser = await User.findOne({ role: 'admin' })
+    if (!adminUser) {
+      res.status(500).json({ success: false, message: 'Admin user not found' })
+      return
+    }
 
+    // Compose email text
+    const emailText = `
+      New Feedback Received:
+
+      Name: ${name || 'N/A'}
+      Email: ${email}
+      Phone Number: ${phoneNumber || 'N/A'}
+      Subject: ${subject || 'N/A'}
+      Message: ${message}
+    `
+
+    // Send email to admin
+    await sendEmail(adminUser.email, 'New Feedback Received', emailText)
 
     res.status(201).json({ success: true, feedback })
   } catch (error: any) {
