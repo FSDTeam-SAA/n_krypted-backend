@@ -10,4 +10,5 @@ export interface IUser {
   country?: String
   cityState?: String
   role: String
+  avatar: String
 }

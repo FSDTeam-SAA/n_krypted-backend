@@ -4,6 +4,8 @@ import crypto from 'crypto'
 import jwt from 'jsonwebtoken'
 import { Request, Response } from 'express'
 import bcrypt from 'bcrypt'
+import cloudinary from '../utils/cloudinary'
+
 
 // User Registration
 export const register = async (req: Request, res: Response): Promise<void> => {
@@ -265,6 +267,25 @@ export const updateUser = async (
   res: Response
 ): Promise<void> => {
   try {
+    let imageUrl = req.body.avatar
+       if (req.file) {
+          await new Promise((resolve, reject) => {
+            const stream = cloudinary.uploader.upload_stream((error, result) => {
+              if (error) {
+                reject(error)
+                return
+              }
+              imageUrl = result?.secure_url || ''
+              resolve(result)
+            })
+            if (!req.file?.buffer) {
+              reject(new Error('File buffer is undefined'))
+              return
+            }
+            stream.end(req.file.buffer)
+          })
+        }
+
     const { name, phoneNumber, userId, country, cityState } = req.body
 
     if (!userId) {
@@ -283,6 +304,7 @@ export const updateUser = async (
     if (phoneNumber) user.phoneNumber = phoneNumber
     if (country) user.country = country
     if (cityState) user.cityState = cityState
+    if (imageUrl) user.avatar = imageUrl
 
     await user.save()
 

@@ -14,6 +14,7 @@ const UserSchema = new Schema<IUser>(
     country: { type: String },
     cityState: { type: String },
     role: { type: String, enum: ['admin', 'user'], default: 'user' },
+    avatar: { type: String }
   },
   { timestamps: true }
 )

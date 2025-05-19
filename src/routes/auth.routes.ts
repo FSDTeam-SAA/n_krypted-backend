@@ -9,6 +9,7 @@ import {
   updateUser,
 } from '../controllers/Auth.controller'
 import protect from '../middlewares/auth.middleware'
+import upload from '../middlewares/multer.middleware'
 
 const router = express.Router()
 
@@ -31,6 +32,6 @@ router.post('/reset-password', resetPassword)
 router.post('/change-password', changePassword)
 
 // Update User Information (Protected Route)
-router.put('/update-profile', updateUser)
+router.put('/update-profile',upload.single('avatar'), updateUser)
 
 export default router
