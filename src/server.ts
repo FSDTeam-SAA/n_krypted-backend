@@ -3,6 +3,7 @@ import dotenv from 'dotenv'
 import { connectDB } from './config/db'
 import http from 'http'
 import { initializeSocket } from './socket/socket'
+import { deactivateExpiredDeals } from './cron/deactivateExpiredDeals'
 
 dotenv.config()
 
@@ -19,5 +20,6 @@ const PORT = process.env.PORT || 5000
 connectDB().then(() => {
   server.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`)
+    deactivateExpiredDeals()
   })
 })

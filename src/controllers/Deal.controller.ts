@@ -158,7 +158,6 @@ export const getAllDeals = async (
 }
 
 
-
 // Get a single deal
 export const getSingleDeal = async (
   req: Request,

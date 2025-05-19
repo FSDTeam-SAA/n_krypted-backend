@@ -1,10 +1,19 @@
 import mongoose from 'mongoose'
 import { IPaymentInfo } from '../interfaces/Payment.interface'
+import { ref } from 'process'
 
 const paymentInfoSchema = new mongoose.Schema<IPaymentInfo>(
   {
-    userId: { type: mongoose.Schema.Types.ObjectId, required: true },
-    bookingId: { type: mongoose.Schema.Types.ObjectId, required: true },
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+    },
+    bookingId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Deal',
+      required: true,
+    },
     price: { type: Number, required: true },
     paymentStatus: {
       type: String,
