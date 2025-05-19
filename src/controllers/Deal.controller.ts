@@ -89,65 +89,53 @@ export const getAllDeals = async (
       minPrice,
       maxPrice,
       location,
+      dealName, 
       page = 1,
       limit = 10,
     } = req.query
 
-    // Convert pagination parameters to numbers
     const pageNumber = parseInt(page as string, 10) || 1
     const itemsPerPage = parseInt(limit as string, 10) || 10
-
-    // Calculate skip value for pagination
     const skip = (pageNumber - 1) * itemsPerPage
 
-    // Build filter object
     const filter: any = {}
 
-    // Filter by location if provided (case-insensitive partial match)
     if (location) {
       filter.location = { $regex: location as string, $options: 'i' }
     }
 
-    // Filter by price range if provided
+    if (dealName) {
+      filter.dealName = { $regex: dealName as string, $options: 'i' }
+    }
+
     if (minPrice || maxPrice) {
       filter.price = {}
       if (minPrice) filter.price.$gte = Number(minPrice)
       if (maxPrice) filter.price.$lte = Number(maxPrice)
     }
 
-    // First get base query
     let query = Deal.find(filter)
 
-    // Add category name filter if provided
     if (categoryName) {
-      // First find matching categories
       const matchingCategories = await Category.find({
         categoryName: { $regex: categoryName as string, $options: 'i' },
       })
 
-      // Filter deals by category IDs
       filter.category = { $in: matchingCategories.map((c) => c._id) }
 
-      // Update the query with the new filter
       query = Deal.find(filter).populate('category')
     } else {
-      // Always populate the category field
       query = query.populate('category')
     }
 
-    // Count total documents for pagination
     const totalItems = await Deal.countDocuments(filter)
 
-    // Apply pagination to query
     query = query.skip(skip).limit(itemsPerPage).sort({ createdAt: -1 })
 
-    // Execute query
     const deals = await query
 
-    // Calculate total pages
     const totalPages = Math.ceil(totalItems / itemsPerPage)
 
-    // Create pagination metadata
     const pagination: MetaPagination = {
       currentPage: pageNumber,
       totalPages,

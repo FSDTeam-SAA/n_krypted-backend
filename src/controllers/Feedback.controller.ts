@@ -1,5 +1,6 @@
 import { Request, Response } from 'express'
 import Feedback from '../models/Feedback.model'
+import sendEmail from '../utils/email'
 
 // Create feedback
 export const createFeedback = async (
@@ -23,6 +24,13 @@ export const createFeedback = async (
       message,
       subject,
     })
+
+    await sendEmail(
+      email,
+      feedback
+      
+    )
+
 
     res.status(201).json({ success: true, feedback })
   } catch (error: any) {
