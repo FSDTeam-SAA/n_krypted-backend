@@ -12,7 +12,16 @@ export const createDeal = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { title, description, price, location, offers, category } = req.body
+    const {
+      title,
+      description,
+      price,
+      location,
+      offers,
+      category,
+      time,
+      participationsLimit,
+    } = req.body
     let images: string[] = []
 
     if (!category) {
@@ -49,6 +58,8 @@ export const createDeal = async (
       offers: offers || [],
       status: 'activate',
       category: new mongoose.Types.ObjectId(category),
+      time,
+      participationsLimit,
     })
 
     await deal.save()
