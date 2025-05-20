@@ -6,6 +6,7 @@ import {
   updateReview,
   deleteReview,
   getDashboardStats,
+  getCategoryBookingStats,
 } from '../controllers/Review.controller'
 import protect from '../middlewares/auth.middleware'
 
@@ -20,6 +21,11 @@ router.put('/reviews/:id', protect, asyncHandler(updateReview))
 // Delete a review
 router.delete('/reviews/:id', protect, asyncHandler(deleteReview))
 
+// Get dashboard stats
 router.get('/dashboard/stats', getDashboardStats)
+
+// top bookings for pie chart 
+router.get('/booking-stats', getCategoryBookingStats)
+
 
 export default router

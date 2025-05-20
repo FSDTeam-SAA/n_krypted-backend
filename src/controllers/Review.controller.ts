@@ -5,6 +5,7 @@ import { PaymentInfo} from '../models/PaymentInfo.model'
 import Booking  from '../models/Booking.model'
 import User from '../models/User.model'
 import Deal from '../models/Deal.model'
+import Category from '../models/Category.model'
 
 // Create a review
 export const createReview = async (
@@ -134,3 +135,46 @@ export const getDashboardStats = async (req: Request, res: Response) => {
     res.status(500).json({ message: 'Failed to fetch dashboard statistics' })
   }
 }
+
+
+// top bookings for pie chart 
+export const getCategoryBookingStats = async (req: Request, res: Response) => {
+  try {
+    const stats = await Booking.aggregate([
+      {
+        $lookup: {
+          from: 'deals',
+          localField: 'dealsId',
+          foreignField: '_id',
+          as: 'deal',
+        },
+      },
+      { $unwind: '$deal' },
+      {
+        $lookup: {
+          from: 'categories',
+          localField: 'deal.category',
+          foreignField: '_id',
+          as: 'category',
+        },
+      },
+      { $unwind: '$category' },
+      {
+        $group: {
+          _id: '$category._id',
+          name: { $first: '$category.categoryName' },
+          value: { $sum: 1 },
+        },
+      },
+      {
+        $sort: { value: -1 }, // Most booked categories first
+      },
+    ])
+
+    res.status(200).json(stats)
+  } catch (error) {
+    console.error('Category booking stats error:', error)
+    res.status(500).json({ message: 'Failed to fetch category stats' })
+  }
+}
+
