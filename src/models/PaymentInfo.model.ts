@@ -25,7 +25,7 @@ const paymentInfoSchema = new mongoose.Schema<IPaymentInfo>(
     paymentMethodNonce: { type: String },
     paymentMethod: { type: String },
   },
-  {
+  { 
     timestamps: true,
   }
 )

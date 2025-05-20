@@ -5,6 +5,7 @@ import {
   getReviewsByDeal,
   updateReview,
   deleteReview,
+  getDashboardStats,
 } from '../controllers/Review.controller'
 import protect from '../middlewares/auth.middleware'
 
@@ -18,5 +19,7 @@ router.get('/reviews/deal/:dealID', asyncHandler(getReviewsByDeal))
 router.put('/reviews/:id', protect, asyncHandler(updateReview))
 // Delete a review
 router.delete('/reviews/:id', protect, asyncHandler(deleteReview))
+
+router.get('/dashboard/stats', getDashboardStats)
 
 export default router

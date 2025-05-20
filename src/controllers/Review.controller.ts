@@ -1,6 +1,11 @@
 import { Request, Response } from 'express'
 import Review from '../models/Review.model'
 
+import { PaymentInfo} from '../models/PaymentInfo.model'
+import Booking  from '../models/Booking.model'
+import User from '../models/User.model'
+import Deal from '../models/Deal.model'
+
 // Create a review
 export const createReview = async (
   req: Request,
@@ -98,5 +103,34 @@ export const deleteReview = async (
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message })
     return void 0
+  }
+}
+
+
+
+export const getDashboardStats = async (req: Request, res: Response) => {
+  try {
+    const [totalRevenueResult, totalBookings, totalCustomers, totalDeals] =
+      await Promise.all([
+        PaymentInfo.aggregate([
+          { $match: { paymentStatus: 'complete' } },
+          { $group: { _id: null, totalRevenue: { $sum: '$price' } } },
+        ]),
+        Booking.countDocuments(),
+        User.countDocuments(),
+        Deal.countDocuments(),
+      ])
+
+    const totalRevenue = totalRevenueResult[0]?.totalRevenue || 0
+
+    res.status(200).json({success: true, data: {
+      totalRevenue,
+      totalBookings,
+      totalCustomers,
+      totalDeals,
+    }})
+  } catch (error) {
+    console.error('Dashboard Error:', error)
+    res.status(500).json({ message: 'Failed to fetch dashboard statistics' })
   }
 }
