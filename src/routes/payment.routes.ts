@@ -14,8 +14,7 @@ const router = express.Router()
 router.get('/payments/client-token', generateClientToken)
 
 // Process payment
-router.post('/payments/checkout', paymentCheckOut)
-
+router.post('/payments/checkout', paymentCheckOut as express.RequestHandler)
 // Analytics routes
 router.get('/analytics/revenue', getTotalRevenue)
 router.get('/analytics/bookings', getTotalBookings)

@@ -3,39 +3,10 @@ import Booking from '../models/Booking.model'
 import crypto from 'crypto'
 import Deal  from '../models/Deal.model'
 import { PaymentInfo } from '../models/PaymentInfo.model'
+import { MetaPagination } from './Deal.controller'
+
+
 // Create a booking
-// export const createBooking = async (
-//   req: Request,
-//   res: Response
-// ): Promise<void> => {
-//   try {
-//     const { dealsId, notifyMe, userId } = req.body
-
-//     if (!dealsId) {
-//       res.status(400).json({ success: false, message: 'Deal ID is required' })
-//       return
-//     }
-
-//     const bookingId = crypto.randomBytes(5).toString('hex').toUpperCase()
-
-//     const booking = await Booking.create({
-//       userId,
-//       bookingId,
-//       dealsId,
-//       notifyMe: notifyMe || false,
-//       isBooked: true,
-//     })
-
-//     res.status(201).json({ success: true, booking })
-//   } catch (error: any) {
-//     res.status(500).json({
-//       success: false,
-//       message: 'Failed to create booking',
-//       error: error.message,
-//     })
-//   }
-// }
-
 export const createBooking = async (
   req: Request,
   res: Response
@@ -128,13 +99,42 @@ export const getBookingsNotifyTrue = async (
   res: Response
 ): Promise<void> => {
   try {
-    const userId = req.query.user
-    console.log('userId__', userId)
-    const bookings = await Booking.find({ userId, notifyMe: true })
-      .populate('dealsId')
-      .sort({ createdAt: -1 })
+    const userId = req.query.user as string
+    const page = parseInt(req.query.page as string) || 1
+    const limit = parseInt(req.query.limit as string) || 10
 
-    res.status(200).json({ success: true, data: bookings })
+    if (!userId || typeof userId !== 'string') {
+      res
+        .status(400)
+        .json({ success: false, message: 'Invalid or missing user ID' })
+      return
+    }
+
+    const skip = (page - 1) * limit
+
+    const [totalItems, bookings] = await Promise.all([
+      Booking.countDocuments({ userId, notifyMe: true }),
+      Booking.find({ userId, notifyMe: true })
+        .populate('dealsId')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+    ])
+
+    const totalPages = Math.ceil(totalItems / limit)
+
+    const pagination: MetaPagination = {
+      currentPage: page,
+      totalPages,
+      totalItems,
+      itemsPerPage: limit,
+    }
+
+    res.status(200).json({
+      success: true,
+      data: bookings,
+      pagination,
+    })
   } catch (error: any) {
     res.status(500).json({
       success: false,
