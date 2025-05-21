@@ -150,11 +150,33 @@ export const getAllBookings = async (
   res: Response
 ): Promise<void> => {
   try {
-    const bookings = await Booking.find()
-      .populate('dealsId')
-      .sort({ createdAt: -1 })
+    const page = parseInt(req.query.page as string) || 1
+    const limit = parseInt(req.query.limit as string) || 10
+    const skip = (page - 1) * limit
 
-    res.status(200).json({ success: true, data: bookings })
+    const [totalItems, bookings] = await Promise.all([
+      Booking.countDocuments(),
+      Booking.find()
+        .populate('dealsId')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+    ])
+
+    const totalPages = Math.ceil(totalItems / limit)
+
+    const pagination: MetaPagination = {
+      currentPage: page,
+      totalPages,
+      totalItems,
+      itemsPerPage: limit,
+    }
+
+    res.status(200).json({
+      success: true,
+      data: bookings,
+      pagination,
+    })
   } catch (error: any) {
     res.status(500).json({
       success: false,
