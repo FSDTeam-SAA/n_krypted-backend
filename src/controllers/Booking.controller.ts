@@ -276,15 +276,34 @@ export const getBookedBookings = async (
   res: Response
 ): Promise<void> => {
   try {
-    const bookings = await Booking.find({ notifyMe: true })
-      .populate('dealsId')
-      .populate('userId', 'name email phoneNumber')
-      .sort({ createdAt: -1 })
+    const page = parseInt(req.query.page as string) || 1
+    const limit = parseInt(req.query.limit as string) || 10
+    const skip = (page - 1) * limit
 
-    res.status(200).json({ 
-      success: true, 
+    const filter = { notifyMe: true }
+
+    const [bookings, totalItems] = await Promise.all([
+      Booking.find(filter)
+        .populate('dealsId')
+        .populate('userId', 'name email phoneNumber')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      Booking.countDocuments(filter),
+    ])
+
+    const totalPages = Math.ceil(totalItems / limit)
+
+    res.status(200).json({
+      success: true,
       count: bookings.length,
-      data: bookings 
+      data: bookings,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalItems,
+        itemsPerPage: limit,
+      },
     })
   } catch (error: any) {
     res.status(500).json({
