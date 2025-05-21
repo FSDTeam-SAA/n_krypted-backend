@@ -1,7 +1,7 @@
 import express from 'express'
 import {
-  generateClientToken,
-  paymentCheckOut,
+  getClientToken,
+  makePayment,
   getTotalRevenue,
   getTotalBookings,
   getTotalCustomers,
@@ -11,10 +11,10 @@ import {
 const router = express.Router()
 
 // Generate client token for Braintree
-router.get('/payments/client-token', generateClientToken)
+router.get('/payments/client-token', getClientToken)
 
 // Process payment
-router.post('/payments/checkout', paymentCheckOut as express.RequestHandler)
+router.post('/payments/checkout', makePayment)
 // Analytics routes
 router.get('/analytics/revenue', getTotalRevenue)
 router.get('/analytics/bookings', getTotalBookings)
