@@ -7,6 +7,7 @@ import {
   resetPassword,
   changePassword,
   updateUser,
+  getUserById,
 } from '../controllers/Auth.controller'
 import protect from '../middlewares/auth.middleware'
 import upload from '../middlewares/multer.middleware'
@@ -33,5 +34,9 @@ router.post('/change-password', changePassword)
 
 // Update User Information (Protected Route)
 router.put('/update-profile',upload.single('avatar'), updateUser)
+
+// get a single user by id 
+router.get('/single-user/:id', getUserById)
+
 
 export default router

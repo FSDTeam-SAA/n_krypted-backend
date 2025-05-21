@@ -2,10 +2,9 @@ import User from '../models/User.model'
 import sendEmail from '../utils/email'
 import crypto from 'crypto'
 import jwt from 'jsonwebtoken'
-import { Request, Response } from 'express'
+import { Request, Response, NextFunction } from 'express'
 import bcrypt from 'bcrypt'
 import cloudinary from '../utils/cloudinary'
-
 
 // User Registration
 export const register = async (req: Request, res: Response): Promise<void> => {
@@ -268,23 +267,23 @@ export const updateUser = async (
 ): Promise<void> => {
   try {
     let imageUrl = req.body.avatar
-       if (req.file) {
-          await new Promise((resolve, reject) => {
-            const stream = cloudinary.uploader.upload_stream((error, result) => {
-              if (error) {
-                reject(error)
-                return
-              }
-              imageUrl = result?.secure_url || ''
-              resolve(result)
-            })
-            if (!req.file?.buffer) {
-              reject(new Error('File buffer is undefined'))
-              return
-            }
-            stream.end(req.file.buffer)
-          })
+    if (req.file) {
+      await new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream((error, result) => {
+          if (error) {
+            reject(error)
+            return
+          }
+          imageUrl = result?.secure_url || ''
+          resolve(result)
+        })
+        if (!req.file?.buffer) {
+          reject(new Error('File buffer is undefined'))
+          return
         }
+        stream.end(req.file.buffer)
+      })
+    }
 
     const { name, phoneNumber, userId, country, cityState } = req.body
 
@@ -319,5 +318,28 @@ export const updateUser = async (
       message: 'Internal server error',
       error: (error as Error).message,
     })
+  }
+}
+
+// get a  single user
+export const getUserById = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { id } = req.params
+
+    const user = await User.findById(id).select(
+      '-password -verificationCode -resetPasswordToken -resetPasswordExpires'
+    )
+    if (!user) {
+       res.status(404).json({ message: 'User not found' })
+       return
+    }
+
+    res.status(200).json({ success: true, data: user })
+  } catch (error) {
+    next(error)
   }
 }
