@@ -28,6 +28,7 @@ router.get('/dashboard/stats', getDashboardStats)
 // top bookings for pie chart 
 router.get('/booking-stats', getCategoryBookingStats)
 
+// get Get Revenue And Booking Stats
 router.get('/revenue-booking', getRevenueAndBookingStats)
 
 
