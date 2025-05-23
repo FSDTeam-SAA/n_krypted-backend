@@ -178,3 +178,80 @@ export const getCategoryBookingStats = async (req: Request, res: Response) => {
   }
 }
 
+// Statistic Revenue and Booking api 
+export const getRevenueAndBookingStats = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const currentYear = new Date().getFullYear()
+
+    const revenueData = await PaymentInfo.aggregate([
+      {
+        $match: {
+          paymentStatus: 'complete',
+          createdAt: {
+            $gte: new Date(`${currentYear}-01-01`),
+            $lt: new Date(`${currentYear + 1}-01-01`),
+          },
+        },
+      },
+      {
+        $group: {
+          _id: { $month: '$createdAt' },
+          totalRevenue: { $sum: '$price' },
+        },
+      },
+    ])
+
+    const bookingData = await Booking.aggregate([
+      {
+        $match: {
+          isBooked: true,
+          createdAt: {
+            $gte: new Date(`${currentYear}-01-01`),
+            $lt: new Date(`${currentYear + 1}-01-01`),
+          },
+        },
+      },
+      {
+        $group: {
+          _id: { $month: '$createdAt' },
+          totalBookings: { $sum: 1 },
+        },
+      },
+    ])
+
+    // Convert to a consistent format
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ]
+
+    const stats = months.map((month, index) => {
+      const revenueEntry = revenueData.find((item) => item._id === index + 1)
+      const bookingEntry = bookingData.find((item) => item._id === index + 1)
+
+      return {
+        month,
+        revenue: revenueEntry ? revenueEntry.totalRevenue : 0,
+        booking: bookingEntry ? bookingEntry.totalBookings : 0,
+      }
+    })
+
+    res.status(200).json(stats)
+  } catch (error) {
+    console.error(error)
+    res.status(500).json({ message: 'Failed to fetch statistics' })
+  }
+}

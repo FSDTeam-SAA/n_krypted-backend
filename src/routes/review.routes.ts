@@ -7,6 +7,7 @@ import {
   deleteReview,
   getDashboardStats,
   getCategoryBookingStats,
+  getRevenueAndBookingStats,
 } from '../controllers/Review.controller'
 import protect from '../middlewares/auth.middleware'
 
@@ -26,6 +27,8 @@ router.get('/dashboard/stats', getDashboardStats)
 
 // top bookings for pie chart 
 router.get('/booking-stats', getCategoryBookingStats)
+
+router.get('/revenue-booking', getRevenueAndBookingStats)
 
 
 export default router
