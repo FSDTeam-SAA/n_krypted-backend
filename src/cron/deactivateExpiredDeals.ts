@@ -15,19 +15,31 @@ export const deactivateExpiredDeals = () => {
       const expiredDealIds: mongoose.Types.ObjectId[] = []
 
       activeDeals.forEach((deal) => {
-        const baseTime = deal.updatedAt ?? deal.createdAt ?? new Date()
-        const expirationDate = new Date(baseTime)
+        try {
+          // Choose base time: updatedAt -> createdAt -> fallback to now
+          const baseTimeCandidate = deal.updatedAt ?? deal.createdAt
 
-        // Add deal.time (in minutes) to the base time
-        expirationDate.setMinutes(
-          expirationDate.getMinutes() + (deal.time || 0)
-        )
+          // Ensure baseTime is a valid Date object
+          const baseTime =
+            baseTimeCandidate instanceof Date &&
+            !isNaN(baseTimeCandidate.getTime())
+              ? baseTimeCandidate
+              : new Date()
 
-        if (now >= expirationDate) {
-          expiredDealIds.push(deal._id)
+          const expirationDate = new Date(baseTime)
+          expirationDate.setMinutes(
+            expirationDate.getMinutes() + (deal.time || 0)
+          )
+
+          if (now >= expirationDate) {
+            expiredDealIds.push(deal._id)
+          }
+        } catch (innerError) {
+          console.error(`Failed to process deal ID: ${deal._id}`, innerError)
         }
+      })
 
-      });      if (expiredDealIds.length > 0) {
+      if (expiredDealIds.length > 0) {
         await Deal.updateMany(
           { _id: { $in: expiredDealIds } },
           { $set: { status: 'deactivate' } }
@@ -40,4 +52,5 @@ export const deactivateExpiredDeals = () => {
     } catch (error) {
       console.error('Error deactivating deals:', error)
     }
-  })}
+  })
+}

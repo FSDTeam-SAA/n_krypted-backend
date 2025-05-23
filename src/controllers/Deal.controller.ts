@@ -5,6 +5,7 @@ import mongoose from 'mongoose'
 import { io } from '../server'
 import { notifyNewDeal, notifyDealStatusChange } from '../socket/socket'
 import Category from '../models/Category.model'
+import Booking from '../models/Booking.model'
 
 
 export const createDeal = async (
@@ -90,6 +91,122 @@ export type MetaPagination = {
 }
 
 
+// export const getAllDeals = async (
+//   req: Request,
+//   res: Response
+// ): Promise<void> => {
+//   try {
+//     const {
+//       categoryName,
+//       minPrice,
+//       maxPrice,
+//       location,
+//       title, 
+//       page = 1,
+//       limit = 10,
+//     } = req.query
+
+//     const pageNumber = parseInt(page as string, 10) || 1
+//     const itemsPerPage = parseInt(limit as string, 10) || 10
+//     const skip = (pageNumber - 1) * itemsPerPage
+
+//     const filter: any = {}
+
+//     if (location) {
+//       filter.location = { $regex: location as string, $options: 'i' }
+//     }
+
+//     if (title && (title as string).length >= 2) {
+//       filter.title = { $regex: title as string, $options: 'i' }
+//     }
+
+//     if (minPrice || maxPrice) {
+//       filter.price = {}
+//       if (minPrice) filter.price.$gte = Number(minPrice)
+//       if (maxPrice) filter.price.$lte = Number(maxPrice)
+//     }
+
+//     let query = Deal.find(filter)
+
+//     if (categoryName) {
+//       const matchingCategories = await Category.find({
+//         categoryName: { $regex: categoryName as string, $options: 'i' },
+//       })
+
+//       filter.category = { $in: matchingCategories.map((c) => c._id) }
+
+//       query = Deal.find(filter).populate('category')
+//     } else {
+//       query = query.populate('category')
+//     }
+
+//     const totalItems = await Deal.countDocuments(filter)
+
+//     query = query.skip(skip).limit(itemsPerPage).sort({ createdAt: -1 })
+
+//     const deals = await query
+
+//     const totalPages = Math.ceil(totalItems / itemsPerPage)
+
+//     const pagination: MetaPagination = {
+//       currentPage: pageNumber,
+//       totalPages,
+//       totalItems,
+//       itemsPerPage,
+//     }
+
+//     res.status(200).json({
+//       success: true,
+//       deals,
+//       pagination,
+//     })
+//   } catch (error: any) {
+//     res.status(500).json({
+//       success: false,
+//       message: 'Failed to fetch deals',
+//       error: error.message,
+//     })
+//   }
+// }
+
+
+// Get a single deal
+
+
+
+
+
+
+
+
+
+// export const getSingleDeal = async (
+//   req: Request,
+//   res: Response
+// ): Promise<void> => {
+//   try {
+//     const { id } = req.params
+//     const deal = await Deal.findById(id).populate('category')
+
+//     if (!deal) {
+//       res.status(404).json({ success: false, message: 'Deal not found' })
+//       return
+//     }
+
+//     res.status(200).json({ success: true, deal })
+//   } catch (error: any) {
+//     res.status(500).json({
+//       success: false,
+//       message: 'Failed to fetch deal',
+//       error: error.message,
+//     })
+//   }
+// }
+
+// Delete a deal
+
+
+
 export const getAllDeals = async (
   req: Request,
   res: Response
@@ -100,7 +217,7 @@ export const getAllDeals = async (
       minPrice,
       maxPrice,
       location,
-      title, 
+      title,
       page = 1,
       limit = 10,
     } = req.query
@@ -125,25 +242,68 @@ export const getAllDeals = async (
       if (maxPrice) filter.price.$lte = Number(maxPrice)
     }
 
-    let query = Deal.find(filter)
-
     if (categoryName) {
       const matchingCategories = await Category.find({
         categoryName: { $regex: categoryName as string, $options: 'i' },
       })
 
       filter.category = { $in: matchingCategories.map((c) => c._id) }
-
-      query = Deal.find(filter).populate('category')
-    } else {
-      query = query.populate('category')
     }
 
     const totalItems = await Deal.countDocuments(filter)
 
-    query = query.skip(skip).limit(itemsPerPage).sort({ createdAt: -1 })
+    let query = Deal.find(filter)
+      .populate('category')
+      .skip(skip)
+      .limit(itemsPerPage)
+      .sort({ createdAt: -1 })
 
     const deals = await query
+
+    // === Aggregate booking counts AFTER deal update ===
+    const bookingCounts = await Booking.aggregate([
+      {
+        $match: {
+          isBooked: true,
+          dealsId: { $in: deals.map((d) => d._id) },
+        },
+      },
+      {
+        $lookup: {
+          from: 'deals',
+          localField: 'dealsId',
+          foreignField: '_id',
+          as: 'dealInfo',
+        },
+      },
+      { $unwind: '$dealInfo' },
+      {
+        $match: {
+          $expr: {
+            $gt: ['$createdAt', '$dealInfo.updatedAt'],
+          },
+        },
+      },
+      {
+        $group: {
+          _id: '$dealsId',
+          count: { $sum: 1 },
+        },
+      },
+    ])
+
+    // === Map booking counts to deals ===
+    const bookingMap = new Map(
+      bookingCounts.map((item) => [item._id.toString(), item.count])
+    )
+
+    const enrichedDeals = deals.map((deal) => {
+      const bookingCount = bookingMap.get(deal._id.toString()) || 0
+      return {
+        ...deal.toObject(),
+        bookingCount,
+      }
+    })
 
     const totalPages = Math.ceil(totalItems / itemsPerPage)
 
@@ -156,7 +316,7 @@ export const getAllDeals = async (
 
     res.status(200).json({
       success: true,
-      deals,
+      deals: enrichedDeals,
       pagination,
     })
   } catch (error: any) {
@@ -168,8 +328,7 @@ export const getAllDeals = async (
   }
 }
 
-
-// Get a single deal
+// get single deals
 export const getSingleDeal = async (
   req: Request,
   res: Response
@@ -183,7 +342,19 @@ export const getSingleDeal = async (
       return
     }
 
-    res.status(200).json({ success: true, deal })
+    const bookingCount = await Booking.countDocuments({
+      dealsId: deal._id,
+      isBooked: true,
+      createdAt: { $gt: deal.updatedAt },
+    })
+
+    res.status(200).json({
+      success: true,
+      deal: {
+        ...deal.toObject(),
+        bookingCount,
+      },
+    })
   } catch (error: any) {
     res.status(500).json({
       success: false,
@@ -193,7 +364,20 @@ export const getSingleDeal = async (
   }
 }
 
-// Delete a deal
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 export const deleteDeal = async (
   req: Request,
   res: Response
