@@ -24,19 +24,6 @@ export const createBooking = async (
       res.status(404).json({ success: false, message: 'Deal not found' })
       return
     }
-    const bookingDocs = await Booking.find({
-      isBooked: true,
-      dealsId: deal._id
-    }).select('_id dealsId');
-
-    const completedPayments = await PaymentInfo.countDocuments({
-      bookingId: { $in: bookingDocs.map(b => b._id) },
-      paymentStatus: 'complete'
-    }).populate('bookingId');
-
-    if( completedPayments && completedPayments >= deal.participationsLimit ){
-      res.status(400).json({ success: false, message: 'Deal is fully booked' })
-    }
 
     const bookingId = crypto.randomBytes(5).toString('hex').toUpperCase()
 
@@ -62,8 +49,12 @@ export const createBooking = async (
     // Check and update deal status
     if (
       deal.participationsLimit &&
-      completedPaymentCount >= deal.participationsLimit
+      completedPaymentCount > deal.participationsLimit
     ) {
+      await Booking.deleteOne({ _id: booking._id })
+      res.status(400).json({ success: false, message: 'Deal is full' })
+    } else if (deal.participationsLimit &&
+      completedPaymentCount == deal.participationsLimit) {
       deal.status = 'deactivate'
       await deal.save()
     }
