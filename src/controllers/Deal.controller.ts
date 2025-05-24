@@ -275,7 +275,8 @@ export const getAllDeals = async (
     // Count completed payments per deal
     const paymentCountMap = new Map();
     for (const payment of completedPayments) {
-      const dealId = payment.bookingId.dealsId.toString();
+      const booking = payment.bookingId as any;
+      const dealId = booking.dealsId.toString();
       paymentCountMap.set(dealId, (paymentCountMap.get(dealId) || 0) + 1);
     }
 
@@ -319,7 +320,7 @@ export const getAllDeals = async (
     // )
 
     const enrichedDeals = deals.map((deal) => {
-      const bookingCount = paymentCountMap.get(deal) || 0;
+      const bookingCount = paymentCountMap.get(deal._id.toString()) || 0;
       return {
         ...deal.toObject(),
         bookingCount,
