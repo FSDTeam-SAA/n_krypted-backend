@@ -6,6 +6,7 @@ import { io } from '../server'
 import { notifyNewDeal, notifyDealStatusChange } from '../socket/socket'
 import Category from '../models/Category.model'
 import Booking from '../models/Booking.model'
+import { PaymentInfo } from '../models/PaymentInfo.model'
 
 
 export const createDeal = async (
@@ -67,7 +68,7 @@ export const createDeal = async (
 
     // Populate the category information before sending response
     const populatedDeal = await Deal.findById(deal._id).populate('category')
-    
+
     // Notify all users about the new deal
     await notifyNewDeal(io, populatedDeal)
 
@@ -260,45 +261,65 @@ export const getAllDeals = async (
 
     const deals = await query
 
-    // === Aggregate booking counts AFTER deal update ===
-    const bookingCounts = await Booking.aggregate([
-      {
-        $match: {
-          isBooked: true,
-          dealsId: { $in: deals.map((d) => d._id) },
-        },
-      },
-      {
-        $lookup: {
-          from: 'deals',
-          localField: 'dealsId',
-          foreignField: '_id',
-          as: 'dealInfo',
-        },
-      },
-      { $unwind: '$dealInfo' },
-      {
-        $match: {
-          $expr: {
-            $gt: ['$createdAt', '$dealInfo.updatedAt'],
-          },
-        },
-      },
-      {
-        $group: {
-          _id: '$dealsId',
-          count: { $sum: 1 },
-        },
-      },
-    ])
+    // Get related completed payment bookings
+    const bookingDocs = await Booking.find({
+      isBooked: true,
+      dealsId: { $in: deals.map(d => d._id) }
+    }).select('_id dealsId');
+
+    const completedPayments = await PaymentInfo.find({
+      bookingId: { $in: bookingDocs.map(b => b._id) },
+      paymentStatus: 'complete'
+    }).populate('bookingId');
+
+    // Count completed payments per deal
+    const paymentCountMap = new Map();
+    for (const payment of completedPayments) {
+      const dealId = payment.bookingId.dealsId.toString();
+      paymentCountMap.set(dealId, (paymentCountMap.get(dealId) || 0) + 1);
+    }
+
+    // // === Aggregate booking counts AFTER deal update ===
+    // const bookingCounts = await Booking.aggregate([
+    //   {
+    //     $match: {
+    //       isBooked: true,
+    //       dealsId: { $in: deals.map((d) => d._id) },
+    //     },
+    //   },
+    //   {
+    //     $lookup: {
+    //       from: 'deals',
+    //       localField: 'dealsId',
+    //       foreignField: '_id',
+    //       as: 'dealInfo',
+    //     },
+    //   },
+    //   { $unwind: '$dealInfo' },
+    //   {
+    //     $match: {
+    //       $expr: {
+    //         $gt: ['$createdAt', '$dealInfo.updatedAt'],
+    //       },
+    //     },
+    //   },
+    //   {
+    //     $group: {
+    //       _id: '$dealsId',
+    //       count: { $sum: 1 },
+    //     },
+    //   },
+    // ])
+
+
 
     // === Map booking counts to deals ===
-    const bookingMap = new Map(
-      bookingCounts.map((item) => [item._id.toString(), item.count])
-    )
+    // const bookingMap = new Map(
+    //   bookingCounts.map((item) => [item._id.toString(), item.count])
+    // )
 
     const enrichedDeals = deals.map((deal) => {
-      const bookingCount = bookingMap.get(deal._id.toString()) || 0
+      const bookingCount = paymentCountMap.get(deal) || 0;
       return {
         ...deal.toObject(),
         bookingCount,

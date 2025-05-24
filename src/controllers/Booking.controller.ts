@@ -1,7 +1,7 @@
 import { Request, Response } from 'express'
 import Booking from '../models/Booking.model'
 import crypto from 'crypto'
-import Deal  from '../models/Deal.model'
+import Deal from '../models/Deal.model'
 import { PaymentInfo } from '../models/PaymentInfo.model'
 import { MetaPagination } from './Deal.controller'
 
@@ -23,6 +23,19 @@ export const createBooking = async (
     if (!deal) {
       res.status(404).json({ success: false, message: 'Deal not found' })
       return
+    }
+    const bookingDocs = await Booking.find({
+      isBooked: true,
+      dealsId: deal._id
+    }).select('_id dealsId');
+
+    const completedPayments = await PaymentInfo.countDocuments({
+      bookingId: { $in: bookingDocs.map(b => b._id) },
+      paymentStatus: 'complete'
+    }).populate('bookingId');
+
+    if( completedPayments && completedPayments >= deal.participationsLimit ){
+      res.status(400).json({ success: false, message: 'Deal is fully booked' })
     }
 
     const bookingId = crypto.randomBytes(5).toString('hex').toUpperCase()
