@@ -25,6 +25,12 @@ export const createBooking = async (
       return
     }
 
+    const existNotify = await Booking.findOne({ userId, dealsId, notifyMe: true })
+    if (existNotify) {
+      res.status(400).json({ success: false, message: 'You have already Notify this deal and you have been notified' })
+      return
+    }
+
     const bookingId = crypto.randomBytes(5).toString('hex').toUpperCase()
 
     const booking = await Booking.create({
