@@ -32,7 +32,7 @@ export const createBooking = async (
       bookingId,
       dealsId,
       notifyMe: notifyMe || false,
-      isBooked: isBooked || true,
+      isBooked: isBooked,
     })
 
     // Get all booking _ids for the deal
