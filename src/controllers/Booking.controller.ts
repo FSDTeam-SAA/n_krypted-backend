@@ -12,7 +12,7 @@ export const createBooking = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { dealsId, notifyMe, userId } = req.body
+    const { dealsId, notifyMe, userId,isBooked } = req.body
 
     if (!dealsId) {
       res.status(400).json({ success: false, message: 'Deal ID is required' })
@@ -32,7 +32,7 @@ export const createBooking = async (
       bookingId,
       dealsId,
       notifyMe: notifyMe || false,
-      isBooked: true,
+      isBooked: isBooked || true,
     })
 
     // Get all booking _ids for the deal
