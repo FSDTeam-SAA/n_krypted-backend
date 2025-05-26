@@ -22,7 +22,7 @@ export const createReview = async (
       return
     }
 
-    const checkBook = await Booking.findOne({ dealsId: dealID, userId: userID })
+    const checkBook = await Booking.findOne({ dealsId: dealID, userId: userID , isBooked: true})
     if (!checkBook) {
       res.status(400).json({ success: false, message: 'You have not booked this deal yet.' })
       return
