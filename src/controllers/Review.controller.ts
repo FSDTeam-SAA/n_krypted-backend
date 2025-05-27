@@ -1,8 +1,8 @@
 import { Request, Response } from 'express'
 import Review from '../models/Review.model'
 
-import { PaymentInfo} from '../models/PaymentInfo.model'
-import Booking  from '../models/Booking.model'
+import { PaymentInfo } from '../models/PaymentInfo.model'
+import Booking from '../models/Booking.model'
 import User from '../models/User.model'
 import Deal from '../models/Deal.model'
 import Category from '../models/Category.model'
@@ -19,7 +19,13 @@ export const createReview = async (
       res
         .status(400)
         .json({ success: false, message: 'All fields are required' })
-      return void 0
+      return
+    }
+
+    const checkBook = await Booking.findOne({ dealsId: dealID, userId: userID , isBooked: true})
+    if (!checkBook) {
+      res.status(400).json({ success: false, message: 'You have not booked this deal yet.' })
+      return
     }
     const review = await Review.create({
       userID,
@@ -124,12 +130,14 @@ export const getDashboardStats = async (req: Request, res: Response) => {
 
     const totalRevenue = totalRevenueResult[0]?.totalRevenue || 0
 
-    res.status(200).json({success: true, data: {
-      totalRevenue,
-      totalBookings,
-      totalCustomers,
-      totalDeals,
-    }})
+    res.status(200).json({
+      success: true, data: {
+        totalRevenue,
+        totalBookings,
+        totalCustomers,
+        totalDeals,
+      }
+    })
   } catch (error) {
     console.error('Dashboard Error:', error)
     res.status(500).json({ message: 'Failed to fetch dashboard statistics' })

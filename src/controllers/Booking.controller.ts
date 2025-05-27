@@ -12,7 +12,7 @@ export const createBooking = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { dealsId, notifyMe, userId } = req.body
+    const { dealsId, notifyMe, userId,isBooked } = req.body
 
     if (!dealsId) {
       res.status(400).json({ success: false, message: 'Deal ID is required' })
@@ -25,6 +25,12 @@ export const createBooking = async (
       return
     }
 
+    const existNotify = await Booking.findOne({ userId, dealsId, notifyMe: true })
+    if (existNotify) {
+      res.status(400).json({ success: false, message: 'You have already Notify this deal and you have been notified' })
+      return
+    }
+
     const bookingId = crypto.randomBytes(5).toString('hex').toUpperCase()
 
     const booking = await Booking.create({
@@ -32,7 +38,7 @@ export const createBooking = async (
       bookingId,
       dealsId,
       notifyMe: notifyMe || false,
-      isBooked: true,
+      isBooked: isBooked,
     })
 
     // Get all booking _ids for the deal
