@@ -3,10 +3,11 @@ import Deal from '../models/Deal.model'
 import cloudinary from '../utils/cloudinary'
 import mongoose from 'mongoose'
 import { io } from '../server'
-import { notifyNewDeal, notifyDealStatusChange } from '../socket/socket'
+import { notifyNewDeal } from '../socket/socket'
 import Category from '../models/Category.model'
 import Booking from '../models/Booking.model'
 import { PaymentInfo } from '../models/PaymentInfo.model'
+import Notification from '../models/Notification.model'
 
 
 export const createDeal = async (
@@ -504,8 +505,33 @@ export const changeDealStatus = async (
     ).populate('category')
 
     try {
-      // Notify users who have notifyMe true for this deal
-      await notifyDealStatusChange(io, id, newStatus)
+      // // Notify users who have notifyMe true for this deal
+      // await notifyDealStatusChange(io, id, newStatus)
+      const bookings = await Booking.find({
+        dealsId: id,
+        notifyMe: true,
+      }).populate('userId')
+      // Notify each user who has notifyMe true
+      for (const booking of bookings) {
+        const userdata = booking.userId as any
+        const userId = userdata._id
+
+        const noti = await Notification.create({
+          userId,
+          message: `Deal status changed to ${newStatus}`,
+          type: 'deal_status_change',
+          dealId: id
+        })
+        // User is connected, send real-time notification
+        io.to(userId.toString()).emit('deal_status_change', {
+          id: noti._id,
+          message: `Deal status changed to ${newStatus}`,
+          deal,
+          newStatus,
+        })
+
+
+      }
     } catch (notificationError) {
       console.error('Failed to send notifications:', notificationError)
       // Continue with the response even if notification fails
