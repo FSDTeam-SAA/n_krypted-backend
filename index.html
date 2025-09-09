@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+  </head>
+  <body>
+    <div
+      style="
+        font-family: Arial, sans-serif;
+        padding: 20px;
+        max-width: 520px;
+        margin: auto;
+        border: 1px solid #ccc;
+        border-radius: 8px;
+      "
+    >
+      <div
+        style="
+          background: #222222;
+          padding: 10px;
+          text-align: center;
+          border-radius: 6px 6px 0 0;
+        "
+      >
+        <img
+          src="https://res.cloudinary.com/dftvlksve/image/upload/v1756129458/Image20250819174530_hjqear.jpg"
+          alt="Walk Throughz Logo"
+          style="max-height: 60px"
+        />
+      </div>
+      <div style="padding: 20px">
+        <h2 style="text-align: center; color: #000; margin-top: 0">
+          Deal verfügbar!
+        </h2>
+        <p style="font-size: 16px; color: #000">
+          Hallo ${userdata.name || 'Nutzer'},
+        </p>
+        <p style="font-size: 16px; color: #000">
+          Der folgende Deal ist jetzt <strong>verfügbar</strong>:
+        </p>
+        <div
+          style="
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 20px 0;
+          "
+        >
+          <strong>${deal?.title}</strong><br />
+          Kategorie: ${(deal?.category as any)?.name || 'Unbekannt'}
+        </div>
+        <p style="font-size: 14px; color: #000; text-align: center">
+          Viele Grüße,<br />
+          Dein <strong>Walk Throughz</strong> Team
+        </p>
+      </div>
+    </div>
+  </body>
+</html>
