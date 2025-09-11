@@ -156,19 +156,20 @@ export const sendNewsletter = async (req: Request, res: Response) => {
 <head>
   <meta charset="utf-8"/>
   <style>
-    body { font-family: Arial, sans-serif; background:#212121; color:#f5f5f5; }
+    body { font-family: Arial, sans-serif; background:#212121; color:#fff; }
     .container { max-width:600px; margin:20px auto; background:#2c2c2c; border-radius:8px; overflow:hidden; }
-    .header { background:#222; padding:20px; text-align:center; }
+    .header { background:#222; padding:20px; text-align:center; color: #fff; }
     .logo {
       background-image: url('https://res.cloudinary.com/dftvlksve/image/upload/v1756129458/Image20250819174530_hjqear.jpg');
       background-repeat: no-repeat;
       background-position: center;
       background-size: contain;
-      height: 90px;
-      max-width: 250px;
+      height: 110px;
+      max-width: 350px;
       margin: 0 auto;
     }
     .content { padding:30px; }
+    .content p { color: #fff; }
     .footer { background:#222; padding:20px; text-align:center; font-size:13px; color:#aaa; }
     .footer a { color:#fff; text-decoration:underline; }
     .btn { display:inline-block; margin-top:15px; padding:10px 18px; background:#e53935; color:#fff; border-radius:6px; text-decoration:none; }
@@ -178,11 +179,11 @@ export const sendNewsletter = async (req: Request, res: Response) => {
   <div class="container">
     <div class="header">
       <div class="logo"></div>
-      <h1>Deine aktuellen Deals im Überblick</h1>
+      <h1>Deine aktuellen Walk Throughz</h1>
     </div>
     <div class="content">
       <p>Hey Entdecker 👋,</p>
-      <div style="background:#1a1a1a; padding:20px; border-radius:8px;">
+      <div style="background:#1a1a1a; padding:20px; border-radius:8px; color: #fff;">
         ${content}
       </div>
       <p>Freu dich auf weitere spannende Angebote & Erlebnisse.</p>
@@ -199,6 +200,7 @@ export const sendNewsletter = async (req: Request, res: Response) => {
   </div>
 </body>
 </html>
+
 `,
       });
     }
