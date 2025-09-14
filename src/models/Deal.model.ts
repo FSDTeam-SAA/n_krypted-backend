@@ -5,6 +5,7 @@ const DealSchema = new Schema<IDeal>(
   {
     title: { type: String, required: true },
     description: { type: String, required: true },
+     shortDescription: { type: String, required: true },
     participationsLimit: { type: Number, default: 0 },
     price: { type: Number, required: true },
     location: {

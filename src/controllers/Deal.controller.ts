@@ -31,13 +31,14 @@ export type ScheduleDate = {
 /*********************
  * CREATE A NEW DEAL *
  *********************/
-export const createDeal = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
+/*********************
+ * CREATE A NEW DEAL *
+ *********************/
+export const createDeal = async (req: Request, res: Response): Promise<void> => {
   try {
     const {
       title,
+      shortDescription, // 👈 add this
       description,
       price,
       offers,
@@ -46,6 +47,35 @@ export const createDeal = async (
       participationsLimit,
       scheduleDates,
     } = req.body;
+
+    // (Optional) normalize/trim shortDescription
+    const normalizedShort =
+      (typeof shortDescription === "string" ? shortDescription.trim() : "") ||
+      ""; // or derive from description if you prefer
+
+    // Validate required fields
+    if (!category) {
+      res.status(400).json({ success: false, message: "Category is required" });
+      return;
+    }
+    if (!title) {
+      res.status(400).json({ success: false, message: "Title is required" });
+      return;
+    }
+    if (!description) {
+      res.status(400).json({ success: false, message: "Description is required" });
+      return;
+    }
+    if (!price && price !== 0) {
+      res.status(400).json({ success: false, message: "Price is required" });
+      return;
+    }
+
+    // If the schema has shortDescription: { required: true }, enforce it here:
+    if (!normalizedShort) {
+      res.status(400).json({ success: false, message: "shortDescription is required" });
+      return;
+    }
 
     // Parse location string (coming from form-data)
     let country = "";
@@ -62,40 +92,24 @@ export const createDeal = async (
       return;
     }
 
-    // Validate required fields
-    if (!category) {
-      res.status(400).json({
-        success: false,
-        message: "Category is required",
-      });
-      return;
-    }
-
     // Parse and validate schedule dates
     let parsedScheduleDates: ScheduleDate[] = [];
     try {
       parsedScheduleDates =
-        typeof scheduleDates === "string"
-          ? JSON.parse(scheduleDates)
-          : scheduleDates;
+        typeof scheduleDates === "string" ? JSON.parse(scheduleDates) : scheduleDates;
 
-      // Validate and transform schedule dates
       parsedScheduleDates = parsedScheduleDates.map((dateInfo: any) => {
         const date = new Date(dateInfo.date);
-        if (isNaN(date.getTime())) {
-          throw new Error("Invalid date format");
-        }
+        if (isNaN(date.getTime())) throw new Error("Invalid date format");
         return {
           date,
           active: true,
-          participationsLimit:
-            dateInfo.participationsLimit || participationsLimit || 0,
+          participationsLimit: dateInfo.participationsLimit || participationsLimit || 0,
           time: dateInfo.time || time || null,
           bookedCount: 0,
         };
       });
 
-      // Sort dates chronologically
       parsedScheduleDates.sort((a, b) => a.date.getTime() - b.date.getTime());
     } catch (e) {
       res.status(400).json({
@@ -106,30 +120,19 @@ export const createDeal = async (
       return;
     }
 
-    // Handle image uploads
+    // Handle image uploads (unchanged) ...
     let images: string[] = [];
     if (req.files && Array.isArray(req.files)) {
-      const uploadPromises = (req.files as Express.Multer.File[]).map(
-        async (file) => {
-          // Resize and compress image using sharp
-          const compressedBuffer = await sharp(file.buffer)
-            .jpeg({ quality: 80 }) // Compress image to 80% quality (JPEG)
-            .toBuffer();
-
-          // Upload to Cloudinary using the compressed image buffer
-          return new Promise<string>((resolve, reject) => {
-            const stream = cloudinary.uploader.upload_stream(
-              { resource_type: "image" },
-              (error, result) => {
-                if (error) return reject(error);
-                resolve(result?.secure_url || "");
-              }
-            );
-            stream.end(compressedBuffer);
-          });
-        }
-      );
-
+      const uploadPromises = (req.files as Express.Multer.File[]).map(async (file) => {
+        const compressedBuffer = await sharp(file.buffer).jpeg({ quality: 80 }).toBuffer();
+        return new Promise<string>((resolve, reject) => {
+          const stream = cloudinary.uploader.upload_stream(
+            { resource_type: "image" },
+            (error, result) => (error ? reject(error) : resolve(result?.secure_url || ""))
+          );
+          stream.end(compressedBuffer);
+        });
+      });
       images = await Promise.all(uploadPromises);
     }
 
@@ -138,6 +141,7 @@ export const createDeal = async (
     // Create the deal
     const deal = new Deal({
       title,
+      shortDescription: normalizedShort, // 👈 persist it
       description,
       price,
       location,
@@ -157,13 +161,10 @@ export const createDeal = async (
 
     res.status(201).json({ success: true, deal: populatedDeal });
   } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to create deal",
-      error: error.message,
-    });
+    res.status(500).json({ success: false, message: "Failed to create deal", error: error.message });
   }
 };
+
 
 /*******************
  * GET SINGLE DEAL *
@@ -520,242 +521,240 @@ export const updateDeal = async (
   }
 };
 
-// export const changeDealStatus = async (
-//   req: Request,
-//   res: Response
-// ): Promise<void> => {
-//   try {
-//     const { id } = req.params
-
-//     // Find deal
-//     const currentDeal = await Deal.findById(id)
-//     if (!currentDeal) {
-//       res.status(404).json({ success: false, message: 'Deal not found' })
-//       return
-//     }
-
-//     // Toggle status
-//     const newStatus =
-//       currentDeal.status === 'activate' ? 'deactivate' : 'activate'
-
-//     // Update deal
-//     const deal = await Deal.findByIdAndUpdate(
-//       id,
-//       { status: newStatus },
-//       { new: true }
-//     ).populate('category')
-
-//     try {
-//       // Get users who want notifications
-//       const bookings = await Booking.find({
-//         dealsId: id,
-//         notifyMe: true,
-//       }).populate('userId')
-
-//       for (const booking of bookings) {
-//         const userdata = booking.userId as any
-//         const userId = userdata._id
-//         const userEmail = userdata.email
-
-//         // Create DB notification
-//         const noti = await Notification.create({
-//           userId,
-//           message: `Der folgende Deal ist jetzt ${
-//             newStatus === 'activate' ? 'verfügbar' : 'nicht mehr verfügbar'
-//           }`,
-//           type: 'deal_status_change',
-//           dealId: id,
-//         })
-
-//         // Real-time notification
-//         io.to(userId.toString()).emit('deal_status_change', {
-//           id: noti._id,
-//           message: `Der folgende Deal ist jetzt ${
-//             newStatus === 'activate' ? 'verfügbar' : 'nicht mehr verfügbar'
-//           }`,
-//           deal,
-//           newStatus,
-//         })
-
-//         // Email notification
-//         if (userEmail) {
-//           const subject =
-//             newStatus === 'activate'
-//               ? 'Deal ist jetzt verfügbar!'
-//               : 'Deal wurde deaktiviert'
-
-//           const text = `Hallo ${
-//             userdata.name || ''
-//           },\n\nDer folgende Deal ist jetzt ${
-//             newStatus === 'activate' ? 'verfügbar' : 'nicht mehr verfügbar'
-//           }:\n\n${deal?.title}\n\nViele Grüße\nDein Walk Throughz Team`
-
-//           const html = `
-//             <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 500px; margin: auto; border: 1px solid #ccc; border-radius: 8px;">
-//               <h2 style="text-align: center; color: #000;">
-//                 ${
-//                   newStatus === 'activate'
-//                     ? 'Deal verfügbar!'
-//                     : 'Deal deaktiviert'
-//                 }
-//               </h2>
-//               <p style="font-size: 16px; color: #000;">
-//                 Hallo ${userdata.name || 'Nutzer'},
-//               </p>
-//               <p style="font-size: 16px; color: #000;">
-//                 Der folgende Deal ist jetzt <strong>${
-//                   newStatus === 'activate'
-//                     ? 'verfügbar'
-//                     : 'nicht mehr verfügbar'
-//                 }</strong>:
-//               </p>
-//               <div style="background: #f5f5f5; padding: 15px; border-radius: 6px; margin: 20px 0;">
-//                 <strong>${deal?.title}</strong><br/>
-//                 Kategorie: ${(deal?.category as any)?.name || 'Unbekannt'}
-//               </div>
-//               <p style="font-size: 14px; color: #000; text-align: center;">
-//                 Viele Grüße,<br/>
-//                 Dein <strong>Walk Throughz</strong> Team
-//               </p>
-//             </div>
-//           `
-
-//           await sendMail(userEmail, subject, text, html)
-//         }
-//       }
-//     } catch (notificationError) {
-//       console.error('Failed to send notifications:', notificationError)
-//     }
-
-//     res.status(200).json({ success: true, deal })
-//   } catch (error: any) {
-//     res.status(500).json({
-//       success: false,
-//       message: 'Failed to change deal status',
-//       error: error.message,
-//     })
-//   }
-// }
 
 export const changeDealStatus = async (
   req: Request,
   res: Response
 ): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { id } = req.params
 
     // Find deal
-    const currentDeal = await Deal.findById(id);
+    const currentDeal = await Deal.findById(id)
     if (!currentDeal) {
-      res.status(404).json({ success: false, message: "Deal not found" });
-      return;
+      res.status(404).json({ success: false, message: 'Deal not found' })
+      return
     }
 
     // Toggle status
     const newStatus =
-      currentDeal.status === "activate" ? "deactivate" : "activate";
+      currentDeal.status === 'activate' ? 'deactivate' : 'activate'
 
     // Update deal
     const deal = await Deal.findByIdAndUpdate(
       id,
       { status: newStatus },
       { new: true }
-    ).populate("category");
+    ).populate('category')
 
     try {
-      // Only send notifications if status changed to "activate"
-      if (newStatus === "activate") {
-        const bookings = await Booking.find({
-          dealsId: id,
-          notifyMe: true,
-        }).populate("userId");
+      // Get users who want notifications
+      const bookings = await Booking.find({
+        dealsId: id,
+        notifyMe: true,
+      }).populate('userId')
 
-        for (const booking of bookings) {
-          const userdata = booking.userId as any;
-          const userId = userdata._id;
-          const userEmail = userdata.email;
+      for (const booking of bookings) {
+        const userdata = booking.userId as any
+        const userId = userdata._id
+        const userEmail = userdata.email
 
-          // Create DB notification
-          const noti = await Notification.create({
-            userId,
-            message: `Der folgende Deal ist jetzt verfügbar`,
-            type: "deal_status_change",
-            dealId: id,
-          });
+        // Create DB notification
+        const noti = await Notification.create({
+          userId,
+          message: `Der folgende Deal ist jetzt ${
+            newStatus === 'activate' ? 'verfügbar' : 'nicht mehr verfügbar'
+          }`,
+          type: 'deal_status_change',
+          dealId: id,
+        })
 
-          // Real-time notification
-          io.to(userId.toString()).emit("deal_status_change", {
-            id: noti._id,
-            message: `Der folgende Deal ist jetzt verfügbar`,
-            deal,
-            newStatus,
-          });
+        // Real-time notification
+        io.to(userId.toString()).emit('deal_status_change', {
+          id: noti._id,
+          message: `Der folgende Deal ist jetzt ${
+            newStatus === 'activate' ? 'verfügbar' : 'nicht mehr verfügbar'
+          }`,
+          deal,
+          newStatus,
+        })
 
-          // Email notification
-          if (userEmail) {
-            const subject = "Deal ist jetzt verfügbar!";
-            const text = `Hallo ${
-              userdata.name || ""
-            },\n\nDer folgende Deal ist jetzt verfügbar:\n\n${
-              deal?.title
-            }\n\nViele Grüße\nDein Walk Throughz Team`;
+        // Email notification
+        if (userEmail) {
+          const subject =
+            newStatus === 'activate'
+              ? 'Deal ist jetzt verfügbar!'
+              : 'Deal wurde deaktiviert'
 
-            const html = `
-  <div style="font-family: Arial, sans-serif; background-color: #ffffff; color: #000000; padding: 0; max-width: 520px; margin: auto; border: 1px solid #000000; border-radius: 8px; overflow: hidden;">
-    <!-- Dark header with logo as background -->
-    <div style="background-color: #222222; padding: 20px; text-align: center;">
-      <div style="
-        background-image: url('https://res.cloudinary.com/dftvlksve/image/upload/v1756129458/Image20250819174530_hjqear.jpg');
-        background-repeat: no-repeat;
-        background-position: center;
-        background-size: contain;
-        height: 110px;
-        max-width: 350px;
-        margin: 0 auto;
-      ">
-      </div>
-    </div>
+          const text = `Hallo ${
+            userdata.name || ''
+          },\n\nDer folgende Deal ist jetzt ${
+            newStatus === 'activate' ? 'verfügbar' : 'nicht mehr verfügbar'
+          }:\n\n${deal?.title}\n\nViele Grüße\nDein Walk Throughz Team`
 
-    <!-- Email body -->
-    <div style="padding: 20px; text-align: center;">
-      <h2 style="font-weight: 600; margin-bottom: 20px; color: #000000;">
-      Walk Through verfügbar!
-      </h2>
-      <p style="font-size: 16px; margin-bottom: 15px; color: #000000; text-align: left;">
-        Hallo ${userdata.name || "Nutzer"},
-      </p>
-      <p style="font-size: 16px; margin-bottom: 15px; color: #000000; text-align: left;">
-        Der folgende Walk Through ist jetzt <strong>verfügbar</strong>:
-      </p>
-      <div style="background: #f5f5f5; padding: 15px; border-radius: 6px; margin: 20px 0; text-align: left;">
-        <strong>${deal?.title}</strong><br/>
-        Kategorie: ${(deal?.category as any)?.name || "Unbekannt"}
-      </div>
-      <p style="font-size: 14px; color: #000000; text-align: center; margin-top: 20px;">
-        Viele Grüße<br/>
-        <strong>Dein Walk Throughz Team</strong>
-      </p>
-    </div>
-  </div>
-`;
+          const html = `
+            <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 500px; margin: auto; border: 1px solid #ccc; border-radius: 8px;">
+              <h2 style="text-align: center; color: #000;">
+                ${
+                  newStatus === 'activate'
+                    ? 'Deal verfügbar!'
+                    : 'Deal deaktiviert'
+                }
+              </h2>
+              <p style="font-size: 16px; color: #000;">
+                Hallo ${userdata.name || 'Nutzer'},
+              </p>
+              <p style="font-size: 16px; color: #000;">
+                Der folgende Deal ist jetzt <strong>${
+                  newStatus === 'activate'
+                    ? 'verfügbar'
+                    : 'nicht mehr verfügbar'
+                }</strong>:
+              </p>
+              <div style="background: #f5f5f5; padding: 15px; border-radius: 6px; margin: 20px 0;">
+                <strong>${deal?.title}</strong><br/>
+                Kategorie: ${(deal?.category as any)?.name || 'Unbekannt'}
+              </div>
+              <p style="font-size: 14px; color: #000; text-align: center;">
+                Viele Grüße,<br/>
+                Dein <strong>Walk Throughz</strong> Team
+              </p>
+            </div>
+          `
 
-            await sendMail(userEmail, subject, text, html);
-          }
+          await sendMail(userEmail, subject, text, html)
         }
       }
     } catch (notificationError) {
-      console.error("Failed to send notifications:", notificationError);
+      console.error('Failed to send notifications:', notificationError)
     }
 
-    res.status(200).json({ success: true, deal });
+    res.status(200).json({ success: true, deal })
   } catch (error: any) {
     res.status(500).json({
       success: false,
-      message: "Failed to change deal status",
+      message: 'Failed to change deal status',
       error: error.message,
-    });
+    })
   }
-};
+}
+
+// export const changeDealStatus = async (
+//   req: Request,
+//   res: Response
+// ): Promise<void> => {
+//   try {
+//     const { id } = req.params;
+
+//     // First find the current deal to get its status
+//     const currentDeal = await Deal.findById(id);
+
+//     if (!currentDeal) {
+//       res.status(404).json({ success: false, message: "Deal not found" });
+//       return;
+//     }
+
+//     // Toggle the status
+//     const newStatus =
+//       currentDeal.status === "activate" ? "deactivate" : "activate";
+
+//     // Update with the new status and populate category
+//     const deal = await Deal.findByIdAndUpdate(
+//       id,
+//       { status: newStatus },
+//       { new: true }
+//     ).populate("category");
+
+//     try {
+//       // Notify users who have notifyMe true for this deal
+//       const bookings = await Booking.find({
+//         dealsId: id,
+//         notifyMe: true,
+//       }).populate("userId");
+
+//       // Notify each user who has notifyMe true
+//       for (const booking of bookings) {
+//         const userdata = booking.userId as any;
+//         const userId = userdata._id;
+
+//         const noti = await Notification.create({
+//           userId,
+//           message: `Der folgende Deal ist jetzt verfügbar`,
+//           type: "deal_status_change",
+//           dealId: id,
+//         });
+
+//         // User is connected, send real-time notification
+//         io.to(userId.toString()).emit("deal_status_change", {
+//           id: noti._id,
+//           message: `Der folgende Deal ist jetzt verfügbar`,
+//           deal,
+//           newStatus,
+//         });
+//       }
+//     } catch (notificationError) {
+//       console.error("Failed to send notifications:", notificationError);
+//       // Continue with the response even if notification fails
+//     }
+
+//     res.status(200).json({ success: true, deal });
+//   } catch (error: any) {
+//     res.status(500).json({
+//       success: false,
+//       message: "Failed to change deal status",
+//       error: error.message,
+//     });
+//   }
+// };
+
+// Get available schedule dates for a deal
+// export const getDealScheduleDates = async (
+//   req: Request,
+//   res: Response
+// ): Promise<void> => {
+//   try {
+//     const { id } = req.params
+//     const deal = await Deal.findById(id)
+
+//     if (!deal) {
+//       res.status(404).json({ success: false, message: 'Deal not found' })
+//       return
+//     }
+
+//     const now = new Date()
+//     const availableDates = deal.scheduleDates
+//       .filter(
+//         (s) =>
+//           typeof s === 'object' &&
+//           s !== null &&
+//           'active' in s &&
+//           'date' in s &&
+//           'participationsLimit' in s &&
+//           (s as any).active &&
+//           (s as any).date >= now &&
+//           ((s as any).participationsLimit === 0 ||
+//             ((s as any).bookedCount || 0) < (s as any).participationsLimit)
+//       )
+//       .map((s) => ({
+//         date: (s as any).date,
+//         time: (s as any).time,
+//         spotsLeft: (s as any).participationsLimit
+//           ? (s as any).participationsLimit - ((s as any).bookedCount || 0)
+//           : null,
+//       }))
+
+//     res.status(200).json({
+//       success: true,
+//       dates: availableDates,
+//     })
+//   } catch (error: any) {
+//     res.status(500).json({
+//       success: false,
+//       message: 'Failed to fetch schedule dates',
+//       error: error.message,
+//     })
+//   }
+// }
 
 export const getDealScheduleDates = async (
   req: Request,
