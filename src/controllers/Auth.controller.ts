@@ -313,50 +313,58 @@ Aus Sicherheitsgründen ist dieser Link nur für kurze Zeit gültig.
 Viele Grüße
 Dein Walk Throughz Team`,
       html: `
-  <div style="font-family: Arial, sans-serif; background-color: #ffffff; color: #000000; padding: 0; max-width: 500px; margin: auto; border: 1px solid #000000; border-radius: 8px; overflow: hidden;">
-
-    <!-- Dark header with logo as background -->
-    <div style="background-color: #222222; padding: 20px; text-align: center;">
-      <div style="
-        background-image: url('https://res.cloudinary.com/dftvlksve/image/upload/v1756129458/Image20250819174530_hjqear.jpg');
-        background-repeat: no-repeat;
-        background-position: center;
-        background-size: contain;
-        height: 110px;
-        max-width: 350px;
-        margin: 0 auto;
-      ">
-      </div>
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="color-scheme" content="light dark">
+  <meta name="supported-color-schemes" content="light dark">
+  <style>
+    body { margin:0; font-family: Arial, sans-serif; background:#212121; color:#fff; }
+    .container { max-width:600px; margin:20px auto; background:#2c2c2c; border-radius:8px; overflow:hidden; }
+    .header { background:#222; padding:20px; text-align:center; color:#fff; }
+    .logo {
+      background-image: url('https://res.cloudinary.com/dftvlksve/image/upload/v1756129458/Image20250819174530_hjqear.jpg');
+      background-repeat: no-repeat;
+      background-position: center;
+      background-size: contain;
+      height: 110px;
+      max-width: 350px;
+      margin: 0 auto;
+    }
+    .content { padding:30px; }
+    .content p { color:#fff; line-height:1.6; margin:0 0 14px; }
+    .card { background:#1a1a1a; padding:20px; border-radius:8px; color:#fff; text-align:center; }
+    .btn { display:inline-block; margin-top:16px; padding:12px 20px; background:#000; color:#fff !important; border-radius:6px; text-decoration:none; font-weight:bold; }
+    .link { color:#fff; text-decoration:underline; word-break:break-all; }
+    .footer { background:#222; padding:20px; text-align:center; font-size:13px; color:#aaa; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="logo"></div>
+      <h1 style="margin:8px 0 0;">Neues Passwort, neues Glück</h1>
     </div>
 
-    <!-- Email body -->
-    <div style="padding: 20px; text-align:center;">
-      <h2 style="font-weight: 600; margin-bottom: 20px; color: #000000;">
-        Neues Passwort, neues Glück
-      </h2>
-      <p style="font-size: 16px; margin-bottom: 15px; color: #000000;">
-        Hey,<br />
-        du hast angefordert, dein Passwort zurückzusetzen.<br />
-        Klicke einfach auf den Button unten, um ein neues Passwort festzulegen:
-      </p>
-      <div style="margin: 20px 0;">
-        <a href="${resetUrl}" style="background: #000000; color: #ffffff; padding: 10px 18px; text-decoration: none; border-radius: 4px; display: inline-block; font-size: 16px;">
-          Neues Passwort wählen
-        </a>
+    <div class="content">
+      <p>Hey,</p>
+      <div class="card">
+        <p>du hast angefordert, dein Passwort zurückzusetzen. Klicke einfach auf den Button, um ein neues Passwort festzulegen:</p>
+        <div style="text-align:center;">
+          <a class="btn" href="${resetUrl}">Neues Passwort wählen</a>
+        </div>
+        <p style="margin-top:18px;">Falls der Button nicht funktioniert, kopiere bitte folgenden Link in deinen Browser:</p>
+        <p><a class="link" href="${resetUrl}">${resetUrl}</a></p>
+        <p>Aus Sicherheitsgründen ist dieser Link nur für kurze Zeit gültig.</p>
       </div>
-      <p style="font-size: 16px; margin-bottom: 20px; color: #000000;">
-        Falls der Button nicht funktioniert, kopiere bitte folgenden Link in deinen Browser:<br />
-        <a href="${resetUrl}" style="text-decoration: underline; color: #000000;">
-          ${resetUrl}
-        </a>
-      </p>
-      <p style="font-size: 16px; margin-bottom: 20px; color: #000000;">
-        Aus Sicherheitsgründen ist dieser Link nur für kurze Zeit gültig.
-      </p>
-      
+      <p style="margin-top:20px;">Viele Grüße<br/>Dein Walk Throughz Team</p>
     </div>
+
   </div>
-  `,
+</body>
+</html>
+`,
     });
 
     // --- End SMTP Send ---
