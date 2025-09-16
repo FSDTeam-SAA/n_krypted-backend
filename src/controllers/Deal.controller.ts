@@ -34,7 +34,10 @@ export type ScheduleDate = {
 /*********************
  * CREATE A NEW DEAL *
  *********************/
-export const createDeal = async (req: Request, res: Response): Promise<void> => {
+export const createDeal = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
   try {
     const {
       title,
@@ -63,7 +66,9 @@ export const createDeal = async (req: Request, res: Response): Promise<void> => 
       return;
     }
     if (!description) {
-      res.status(400).json({ success: false, message: "Description is required" });
+      res
+        .status(400)
+        .json({ success: false, message: "Description is required" });
       return;
     }
     if (!price && price !== 0) {
@@ -73,7 +78,9 @@ export const createDeal = async (req: Request, res: Response): Promise<void> => 
 
     // If the schema has shortDescription: { required: true }, enforce it here:
     if (!normalizedShort) {
-      res.status(400).json({ success: false, message: "shortDescription is required" });
+      res
+        .status(400)
+        .json({ success: false, message: "shortDescription is required" });
       return;
     }
 
@@ -96,7 +103,9 @@ export const createDeal = async (req: Request, res: Response): Promise<void> => 
     let parsedScheduleDates: ScheduleDate[] = [];
     try {
       parsedScheduleDates =
-        typeof scheduleDates === "string" ? JSON.parse(scheduleDates) : scheduleDates;
+        typeof scheduleDates === "string"
+          ? JSON.parse(scheduleDates)
+          : scheduleDates;
 
       parsedScheduleDates = parsedScheduleDates.map((dateInfo: any) => {
         const date = new Date(dateInfo.date);
@@ -104,7 +113,8 @@ export const createDeal = async (req: Request, res: Response): Promise<void> => 
         return {
           date,
           active: true,
-          participationsLimit: dateInfo.participationsLimit || participationsLimit || 0,
+          participationsLimit:
+            dateInfo.participationsLimit || participationsLimit || 0,
           time: dateInfo.time || time || null,
           bookedCount: 0,
         };
@@ -123,16 +133,21 @@ export const createDeal = async (req: Request, res: Response): Promise<void> => 
     // Handle image uploads (unchanged) ...
     let images: string[] = [];
     if (req.files && Array.isArray(req.files)) {
-      const uploadPromises = (req.files as Express.Multer.File[]).map(async (file) => {
-        const compressedBuffer = await sharp(file.buffer).jpeg({ quality: 80 }).toBuffer();
-        return new Promise<string>((resolve, reject) => {
-          const stream = cloudinary.uploader.upload_stream(
-            { resource_type: "image" },
-            (error, result) => (error ? reject(error) : resolve(result?.secure_url || ""))
-          );
-          stream.end(compressedBuffer);
-        });
-      });
+      const uploadPromises = (req.files as Express.Multer.File[]).map(
+        async (file) => {
+          const compressedBuffer = await sharp(file.buffer)
+            .jpeg({ quality: 80 })
+            .toBuffer();
+          return new Promise<string>((resolve, reject) => {
+            const stream = cloudinary.uploader.upload_stream(
+              { resource_type: "image" },
+              (error, result) =>
+                error ? reject(error) : resolve(result?.secure_url || "")
+            );
+            stream.end(compressedBuffer);
+          });
+        }
+      );
       images = await Promise.all(uploadPromises);
     }
 
@@ -161,10 +176,15 @@ export const createDeal = async (req: Request, res: Response): Promise<void> => 
 
     res.status(201).json({ success: true, deal: populatedDeal });
   } catch (error: any) {
-    res.status(500).json({ success: false, message: "Failed to create deal", error: error.message });
+    res
+      .status(500)
+      .json({
+        success: false,
+        message: "Failed to create deal",
+        error: error.message,
+      });
   }
 };
-
 
 /*******************
  * GET SINGLE DEAL *
@@ -521,123 +541,142 @@ export const updateDeal = async (
   }
 };
 
-
 export const changeDealStatus = async (
   req: Request,
   res: Response
 ): Promise<void> => {
   try {
-    const { id } = req.params
+    const { id } = req.params;
 
     // Find deal
-    const currentDeal = await Deal.findById(id)
+    const currentDeal = await Deal.findById(id);
     if (!currentDeal) {
-      res.status(404).json({ success: false, message: 'Deal not found' })
-      return
+      res.status(404).json({ success: false, message: "Deal not found" });
+      return;
     }
 
     // Toggle status
     const newStatus =
-      currentDeal.status === 'activate' ? 'deactivate' : 'activate'
+      currentDeal.status === "activate" ? "deactivate" : "activate";
 
     // Update deal
     const deal = await Deal.findByIdAndUpdate(
       id,
       { status: newStatus },
       { new: true }
-    ).populate('category')
+    ).populate("category");
 
     try {
       // Get users who want notifications
       const bookings = await Booking.find({
         dealsId: id,
         notifyMe: true,
-      }).populate('userId')
+      }).populate("userId");
 
       for (const booking of bookings) {
-        const userdata = booking.userId as any
-        const userId = userdata._id
-        const userEmail = userdata.email
+        const userdata = booking.userId as any;
+        const userId = userdata._id;
+        const userEmail = userdata.email;
 
         // Create DB notification
         const noti = await Notification.create({
           userId,
           message: `Der folgende Deal ist jetzt ${
-            newStatus === 'activate' ? 'verfügbar' : 'nicht mehr verfügbar'
+            newStatus === "activate" ? "verfügbar" : "nicht mehr verfügbar"
           }`,
-          type: 'deal_status_change',
+          type: "deal_status_change",
           dealId: id,
-        })
+        });
 
         // Real-time notification
-        io.to(userId.toString()).emit('deal_status_change', {
+        io.to(userId.toString()).emit("deal_status_change", {
           id: noti._id,
           message: `Der folgende Deal ist jetzt ${
-            newStatus === 'activate' ? 'verfügbar' : 'nicht mehr verfügbar'
+            newStatus === "activate" ? "verfügbar" : "nicht mehr verfügbar"
           }`,
           deal,
           newStatus,
-        })
+        });
 
         // Email notification
         if (userEmail) {
           const subject =
-            newStatus === 'activate'
-              ? 'Deal ist jetzt verfügbar!'
-              : 'Deal wurde deaktiviert'
+            newStatus === "activate"
+              ? "Deal ist jetzt verfügbar!"
+              : "Deal wurde deaktiviert";
 
           const text = `Hallo ${
-            userdata.name || ''
+            userdata.name || ""
           },\n\nDer folgende Deal ist jetzt ${
-            newStatus === 'activate' ? 'verfügbar' : 'nicht mehr verfügbar'
-          }:\n\n${deal?.title}\n\nViele Grüße\nDein Walk Throughz Team`
+            newStatus === "activate" ? "verfügbar" : "nicht mehr verfügbar"
+          }:\n\n${deal?.title}\n\nViele Grüße\nDein Walk Throughz Team`;
 
           const html = `
-            <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 500px; margin: auto; border: 1px solid #ccc; border-radius: 8px;">
-              <h2 style="text-align: center; color: #000;">
-                ${
-                  newStatus === 'activate'
-                    ? 'Deal verfügbar!'
-                    : 'Deal deaktiviert'
-                }
-              </h2>
-              <p style="font-size: 16px; color: #000;">
-                Hallo ${userdata.name || 'Nutzer'},
-              </p>
-              <p style="font-size: 16px; color: #000;">
-                Der folgende Deal ist jetzt <strong>${
-                  newStatus === 'activate'
-                    ? 'verfügbar'
-                    : 'nicht mehr verfügbar'
-                }</strong>:
-              </p>
-              <div style="background: #f5f5f5; padding: 15px; border-radius: 6px; margin: 20px 0;">
-                <strong>${deal?.title}</strong><br/>
-                Kategorie: ${(deal?.category as any)?.name || 'Unbekannt'}
-              </div>
-              <p style="font-size: 14px; color: #000; text-align: center;">
-                Viele Grüße,<br/>
-                Dein <strong>Walk Throughz</strong> Team
-              </p>
-            </div>
-          `
+  <div style="font-family: Arial, sans-serif; background:#2c2c2c; color:#ffffff; max-width:600px; margin:auto; border-radius:8px; overflow:hidden;">
 
-          await sendMail(userEmail, subject, text, html)
+    <!-- Header -->
+    <div style="background:#222222; padding:20px; text-align:center;">
+      <div style="
+        background-image: url('https://res.cloudinary.com/dftvlksve/image/upload/v1756129458/Image20250819174530_hjqear.jpg');
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: contain;
+        height: 110px;
+        max-width: 350px;
+        margin: 0 auto;
+      "></div>
+    </div>
+
+    <!-- Title -->
+    <div style="text-align:center; padding:12px 20px 0;">
+      <h1 style="font-size:20px; line-height:28px; margin:0; font-weight:700; color:#ffffff !important;">
+        ${newStatus === "activate" ? "Deal verfügbar!" : "Deal deaktiviert"}
+      </h1>
+    </div>
+
+    <!-- Body -->
+    <div style="padding:20px; font-size:16px; line-height:24px; color:#ffffff !important;">
+      <p style="margin:0 0 16px; color:#ffffff !important;">
+        Hallo ${userdata.name || "Nutzer"},
+      </p>
+      <p style="margin:0 0 16px; color:#ffffff !important;">
+        Der folgende Deal ist jetzt <strong>${
+          newStatus === "activate" ? "verfügbar" : "nicht mehr verfügbar"
+        }</strong>:
+      </p>
+
+      <!-- Deal card -->
+      <div style="background:#1a1a1a; padding:15px; border-radius:6px; margin:20px 0; color:#ffffff !important;">
+        <strong>${deal?.title}</strong><br/>
+        Kategorie: ${(deal?.category as any)?.name || "Unbekannt"}
+      </div>
+
+      <!-- Sign-off -->
+      <p style="margin:24px 0 0; font-size:14px; color:#ffffff !important; text-align:center;">
+        Viele Grüße<br/>
+        Dein <strong>Walk Throughz</strong> Team
+      </p>
+    </div>
+
+  </div>
+`;
+
+          await sendMail(userEmail, subject, text, html);
         }
       }
     } catch (notificationError) {
-      console.error('Failed to send notifications:', notificationError)
+      console.error("Failed to send notifications:", notificationError);
     }
 
-    res.status(200).json({ success: true, deal })
+    res.status(200).json({ success: true, deal });
   } catch (error: any) {
     res.status(500).json({
       success: false,
-      message: 'Failed to change deal status',
+      message: "Failed to change deal status",
       error: error.message,
-    })
+    });
   }
-}
+};
 
 // export const changeDealStatus = async (
 //   req: Request,

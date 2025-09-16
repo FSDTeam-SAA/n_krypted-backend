@@ -109,39 +109,49 @@ Gib den Code einfach in der Anmeldemaske ein – und schon kann’s losgehen!
 Vielen Dank und herzlich willkommen!
 Dein Walk Throughz Team`,
       html: `
-  <div style="font-family: Arial, sans-serif; background-color: #ffffff; color: #000000; padding: 0; max-width: 500px; margin: auto; border: 1px solid #000000; border-radius: 8px; overflow: hidden;">
+  <div style="font-family: Arial, Helvetica, sans-serif; background-color:#2c2c2c; color:#ffffff; padding:0; max-width:600px; margin:auto; border-radius:8px; overflow:hidden;">
 
-    <!-- Dark header with background logo -->
-    <div style="background-color: #222222; padding: 20px; text-align: center;">
+    <!-- Top bar / logo (CSS background image) -->
+    <div style="background-color:#222222; padding:20px; text-align:center;">
       <div style="
-        background-image: url('https://res.cloudinary.com/dftvlksve/image/upload/v1756129458/Image20250819174530_hjqear.jpg');
-        background-repeat: no-repeat;
-        background-position: center;
-        background-size: contain;
-        height: 110px;
-        max-width: 350px;
-        margin: 0 auto;
-      ">
-      </div>
+        background-image:url('https://res.cloudinary.com/dftvlksve/image/upload/v1756129458/Image20250819174530_hjqear.jpg');
+        background-repeat:no-repeat;
+        background-position:center;
+        background-size:contain;
+        height:110px;
+        max-width:350px;
+        margin:0 auto;
+      "></div>
     </div>
 
-    <!-- Email body -->
-    <div style="padding: 20px; text-align:center;">
-      <h2 style="font-weight: 600; margin-bottom: 20px; color: #000000;">
+    <!-- Title below the top bar -->
+    <div style="padding:0 20px 8px; text-align:center;">
+      <h1 style="font-size:20px; line-height:28px; margin:16px 0 0; font-weight:700; color:#ffffff !important; text-align:center;">
         Willkommen
-      </h2>
+      </h1>
+    </div>
 
-      <p style="font-size: 16px; margin-bottom: 15px; color: #000000;">
-        Hey, schön, dass du dabei bist! <br/>
+    <!-- Body -->
+    <div style="padding:20px; text-align:center; font-size:16px; line-height:24px;">
+      <p style="margin:0 0 16px; color:#ffffff !important;">
+        Hey, schön, dass du dabei bist!
+      </p>
+      <p style="margin:0 0 8px; color:#ffffff !important;">
         Um deine Anmeldung abzuschließen, bestätige bitte deine E-Mail mit dem folgenden Code:
       </p>
 
-      <div style="background: #000000; color: #ffffff; font-size: 24px; letter-spacing: 4px; font-weight: bold; padding: 15px; border-radius: 6px; margin: 20px 0;">
+      <!-- Verification code -->
+      <div style="background:#000000; color:#ffffff !important; font-size:24px; letter-spacing:4px; font-weight:bold; padding:15px 20px; border-radius:6px; margin:20px auto; display:inline-block;">
         ${verificationCode}
       </div>
 
-      <p style="font-size: 16px; margin-bottom: 20px; color: #000000;">
+      <p style="margin:20px 0 0; color:#ffffff !important;">
         Gib den Code einfach in der Anmeldemaske ein – und schon kann’s losgehen!
+      </p>
+
+      <!-- Centered sign-off -->
+      <p style="margin:24px 0 0; font-size:16px; color:#ffffff !important; text-align:center;">
+        Viele Grüße<br/>Dein Walk Throughz Team
       </p>
     </div>
   </div>
@@ -319,46 +329,61 @@ Dein Walk Throughz Team`,
   <meta charset="utf-8"/>
   <meta name="color-scheme" content="light dark">
   <meta name="supported-color-schemes" content="light dark">
-  <style>
-    body { margin:0; font-family: Arial, sans-serif; background:#212121; color:#fff; }
-    .container { max-width:600px; margin:20px auto; background:#2c2c2c; border-radius:8px; overflow:hidden; }
-    .header { background:#222; padding:20px; text-align:center; color:#fff; }
-    .logo {
-      background-image: url('https://res.cloudinary.com/dftvlksve/image/upload/v1756129458/Image20250819174530_hjqear.jpg');
-      background-repeat: no-repeat;
-      background-position: center;
-      background-size: contain;
-      height: 110px;
-      max-width: 350px;
-      margin: 0 auto;
-    }
-    .content { padding:30px; }
-    .content p { color:#fff; line-height:1.6; margin:0 0 14px; }
-    .card { background:#1a1a1a; padding:20px; border-radius:8px; color:#fff; text-align:center; }
-    .btn { display:inline-block; margin-top:16px; padding:12px 20px; background:#000; color:#fff !important; border-radius:6px; text-decoration:none; font-weight:bold; }
-    .link { color:#fff; text-decoration:underline; word-break:break-all; }
-    .footer { background:#222; padding:20px; text-align:center; font-size:13px; color:#aaa; }
-  </style>
 </head>
-<body>
-  <div class="container">
-    <div class="header">
-      <div class="logo"></div>
-      <h1 style="margin:8px 0 0;">Neues Passwort, neues Glück</h1>
+<body style="margin:0; font-family: Arial, sans-serif; background:#212121; color:#ffffff;">
+  <div style="max-width:600px; margin:20px auto; background:#2c2c2c; border-radius:8px; overflow:hidden;">
+
+    <!-- Header -->
+    <div style="background:#222222; padding:20px; text-align:center;">
+      <div style="
+        background-image: url('https://res.cloudinary.com/dftvlksve/image/upload/v1756129458/Image20250819174530_hjqear.jpg');
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: contain;
+        height: 110px;
+        max-width: 350px;
+        margin: 0 auto;
+      "></div>
     </div>
 
-    <div class="content">
-      <p>Hey,</p>
-      <div class="card">
-        <p>du hast angefordert, dein Passwort zurückzusetzen. Klicke einfach auf den Button, um ein neues Passwort festzulegen:</p>
-        <div style="text-align:center;">
-          <a class="btn" href="${resetUrl}">Neues Passwort wählen</a>
-        </div>
-        <p style="margin-top:18px;">Falls der Button nicht funktioniert, kopiere bitte folgenden Link in deinen Browser:</p>
-        <p><a class="link" href="${resetUrl}">${resetUrl}</a></p>
-        <p>Aus Sicherheitsgründen ist dieser Link nur für kurze Zeit gültig.</p>
+    <!-- Title -->
+    <div style="text-align:center; padding:12px 20px 0;">
+      <h1 style="font-size:20px; line-height:28px; margin:0; font-weight:700; color:#ffffff !important;">
+        Neues Passwort, neues Glück
+      </h1>
+    </div>
+
+    <!-- Content -->
+    <div style="padding:30px; font-size:16px; line-height:24px; color:#ffffff !important;">
+      <p style="margin:0 0 16px; color:#ffffff !important;">Hey,</p>
+
+      <div style="background:#1a1a1a; padding:20px; border-radius:8px; text-align:center; color:#ffffff !important;">
+        <p style="margin:0 0 20px; color:#ffffff !important;">
+          du hast angefordert, dein Passwort zurückzusetzen. Klicke einfach auf den Button, um ein neues Passwort festzulegen:
+        </p>
+
+        <a href="${resetUrl}" 
+           style="display:inline-block; margin:10px 0; padding:12px 20px; background:#e53935; color:#ffffff !important; border-radius:6px; text-decoration:none; font-weight:bold; font-size:16px;">
+          Neues Passwort wählen
+        </a>
+
+        <p style="margin:20px 0 10px; font-size:14px; color:#cccccc !important;">
+          Falls der Button nicht funktioniert, kopiere bitte folgenden Link in deinen Browser:
+        </p>
+
+        <p style="margin:0;">
+          <a href="${resetUrl}" style="color:#4da3ff !important; word-break:break-all;">${resetUrl}</a>
+        </p>
+
+        <p style="font-size:13px; color:#aaaaaa !important; margin-top:16px;">
+          Aus Sicherheitsgründen ist dieser Link nur für kurze Zeit gültig.
+        </p>
       </div>
-      <p style="margin-top:20px;">Viele Grüße<br/>Dein Walk Throughz Team</p>
+
+      <!-- Sign-off -->
+      <p style="margin:24px 0 0; font-size:16px; color:#ffffff !important; text-align:center;">
+        Viele Grüße<br/>Dein Walk Throughz Team
+      </p>
     </div>
 
   </div>
@@ -432,10 +457,18 @@ Gib den Code einfach in der Anmeldemaske ein – und schon kann’s losgehen!
 Vielen Dank und herzlich willkommen!
 Dein Walk Throughz Team`,
       html: `
-  <div style="font-family: Arial, sans-serif; background-color: #ffffff; color: #000000; padding: 0; max-width: 500px; margin: auto; border: 1px solid #000000; border-radius: 8px; overflow: hidden;">
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="color-scheme" content="light dark">
+  <meta name="supported-color-schemes" content="light dark">
+</head>
+<body style="margin:0; font-family: Arial, sans-serif; background:#212121; color:#ffffff;">
+  <div style="max-width:600px; margin:20px auto; background:#2c2c2c; border-radius:8px; overflow:hidden;">
 
-    <!-- Dark header with logo as background -->
-    <div style="background-color: #222222; padding: 20px; text-align: center;">
+    <!-- Header / Logo -->
+    <div style="background:#222222; padding:20px; text-align:center;">
       <div style="
         background-image: url('https://res.cloudinary.com/dftvlksve/image/upload/v1756129458/Image20250819174530_hjqear.jpg');
         background-repeat: no-repeat;
@@ -444,30 +477,43 @@ Dein Walk Throughz Team`,
         height: 110px;
         max-width: 350px;
         margin: 0 auto;
-      ">
-      </div>
+      "></div>
     </div>
 
-    <!-- Email body -->
-    <div style="padding: 20px; text-align:center;">
-      <h2 style="font-weight: 600; margin-bottom: 20px; color: #000000;">
+    <!-- Title below logo -->
+    <div style="text-align:center; padding:12px 20px 0;">
+      <h1 style="font-size:20px; line-height:28px; margin:0; font-weight:700; color:#ffffff !important;">
         Willkommen
-      </h2>
+      </h1>
+    </div>
 
-      <p style="font-size: 16px; margin-bottom: 15px; color: #000000;">
-        Hey, schön, dass du dabei bist! <br/>
+    <!-- Body -->
+    <div style="padding:20px; text-align:center; font-size:16px; line-height:24px; color:#ffffff !important;">
+      <p style="margin:0 0 16px; color:#ffffff !important;">
+        Hey, schön, dass du dabei bist!
+      </p>
+      <p style="margin:0 0 8px; color:#ffffff !important;">
         Um deine Anmeldung abzuschließen, bestätige bitte deine E-Mail mit dem folgenden Code:
       </p>
 
-      <div style="background: #000000; color: #ffffff; font-size: 24px; letter-spacing: 4px; font-weight: bold; padding: 15px; border-radius: 6px; margin: 20px 0;">
+      <!-- Code block -->
+      <div style="background:#000000; color:#ffffff !important; font-size:24px; letter-spacing:4px; font-weight:bold; padding:15px 20px; border-radius:6px; margin:20px auto; display:inline-block;">
         ${verificationCode}
       </div>
 
-      <p style="font-size: 16px; margin-bottom: 20px; color: #000000;">
+      <p style="margin:20px 0 0; color:#ffffff !important;">
         Gib den Code einfach in der Anmeldemaske ein – und schon kann’s losgehen!
       </p>
+
+      <!-- Sign-off -->
+      <p style="margin:24px 0 0; font-size:16px; color:#ffffff !important; text-align:center;">
+        Viele Grüße<br/>Dein Walk Throughz Team
+      </p>
     </div>
+
   </div>
+</body>
+</html>
   `,
     });
 

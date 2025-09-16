@@ -57,12 +57,12 @@ export const sendBookingConfirmationEmail = async (
     }
     .header h1 {
       margin: 0;
-      font-size: 24px;
+      font-size: 20px; /* fixed headline size */
       letter-spacing: 1px;
       color: #ffffff;
     }
-    .content { padding: 30px; color: #f5f5f5; }
-    .greeting { font-size: 18px; margin-bottom: 20px; color: #ffffff; }
+    .content { padding: 30px; color: #f5f5f5; font-size: 16px; line-height: 24px; }
+    .greeting { font-size: 16px; margin-bottom: 20px; color: #ffffff; }
     .booking-card {
       background-color: #1a1a1a;
       border-radius: 8px;
@@ -70,23 +70,25 @@ export const sendBookingConfirmationEmail = async (
       margin: 20px 0;
       border-left: 4px solid #ffffff;
       color: #f5f5f5;
+      font-size: 16px;
+      line-height: 24px;
     }
-    .deal-title { color: #ffffff; margin-top: 0; font-size: 20px; }
-    .detail-row { margin-bottom: 10px; display: flex; color: #f5f5f5; }
+    .deal-title { color: #ffffff; margin-top: 0; font-size: 16px; font-weight:bold; }
+    .detail-row { margin-bottom: 10px; display: flex; color: #f5f5f5; font-size: 16px; }
     .detail-label { font-weight: bold; min-width: 100px; color: #cccccc; }
     .detail-row span { color: #f5f5f5; }
     .booking-id-badge {
       background-color: #ffffff;
       color: #212121;
-      padding: 8px 15px;
+      padding: 6px 15px;
       border-radius: 20px;
       font-weight: bold;
-      font-size: 18px;
+      font-size: 16px; /* fixed */
       display: inline-block;
       margin: 10px 0;
       box-shadow: 0 2px 5px rgba(255,255,255,0.2);
     }
-    .description { margin: 15px 0; line-height: 1.5; color: #dddddd; }
+    .description { margin: 15px 0; line-height: 1.5; color: #dddddd; font-size:16px; }
     .button-container { text-align: center; margin: 25px 0 15px; }
     .button {
       display: inline-block;
@@ -96,25 +98,24 @@ export const sendBookingConfirmationEmail = async (
       text-decoration: none;
       border-radius: 4px;
       font-weight: bold;
-      transition: background-color 0.3s, color 0.3s;
+      font-size: 16px; /* fixed */
     }
     .button:hover { background-color: #e0e0e0; color: #000000; }
     .footer {
       margin-top: 30px;
-      font-size: 14px;
+      font-size: 13px; /* footer smaller */
       text-align: center;
       color: #aaaaaa;
       border-top: 1px solid #444;
       padding-top: 20px;
     }
     .highlight { color: #ffffff; font-weight: bold; }
-    p { color: #f5f5f5; }
+    p { color: #f5f5f5; font-size:16px; line-height:24px; }
   </style>
 </head>
 <body>
   <div class="container">
     <div class="header">
-      <!-- Inline the logo styles to ensure it renders in all clients -->
       <div style="
         background-image: url('https://res.cloudinary.com/dftvlksve/image/upload/v1756129458/Image20250819174530_hjqear.jpg');
         background-repeat: no-repeat;
@@ -124,7 +125,6 @@ export const sendBookingConfirmationEmail = async (
         max-width: 350px;
         margin: 0 auto 15px;
       "></div>
-
       <h1>Buchung bestätigt! ✅</h1>
     </div>
     
@@ -138,9 +138,9 @@ export const sendBookingConfirmationEmail = async (
       <div class="booking-card">
         <h3 class="deal-title">${dealDetails.title}</h3>
         
-        <div class="booking-id-badge">Buchungs-ID:
-          #${bookingDetails.bookingId.slice(-4)}
-        </div>
+        <div class="booking-id-badge">Buchungs-ID: #${bookingDetails.bookingId.slice(
+          -4
+        )}</div>
         
         <div class="detail-row">
           <span class="detail-label">Datum:</span>
@@ -166,12 +166,12 @@ export const sendBookingConfirmationEmail = async (
       
       <p>Falls du Fragen hast, melde dich gerne jederzeit bei uns.</p>
       
-      
-      
-   
+      <!-- Centered sign-off -->
+      <p style="margin:24px 0 0; font-size:16px; color:#ffffff; text-align:center;">
+        Viele Grüße<br/>Dein Walk Throughz Team
+      </p>
     </div>
   </div>
-  
 </body>
 </html>
 `;

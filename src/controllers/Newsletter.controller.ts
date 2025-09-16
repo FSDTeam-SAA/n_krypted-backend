@@ -152,56 +152,77 @@ export const sendNewsletter = async (req: Request, res: Response) => {
         text: content,
         html: `
 <!DOCTYPE html>
-<html>
+<html lang="de">
 <head>
   <meta charset="utf-8"/>
-  <style>
-    body { font-family: Arial, sans-serif; background:#212121; color:#fff; }
-    .container { max-width:600px; margin:20px auto; background:#2c2c2c; border-radius:8px; overflow:hidden; }
-    .header { background:#222; padding:20px; text-align:center; color: #fff; }
-    .logo {
-      background-image: url('https://res.cloudinary.com/dftvlksve/image/upload/v1756129458/Image20250819174530_hjqear.jpg');
-      background-repeat: no-repeat;
-      background-position: center;
-      background-size: contain;
-      height: 110px;
-      max-width: 350px;
-      margin: 0 auto;
-    }
-    .content { padding:30px; }
-    .content p { color: #fff; }
-    .footer { background:#222; padding:20px; text-align:center; font-size:13px; color:#aaa; }
-    .footer a { color:#fff; text-decoration:underline; }
-    .btn { display:inline-block; margin-top:15px; padding:10px 18px; background:#e53935; color:#fff; border-radius:6px; text-decoration:none; }
-  </style>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <meta name="color-scheme" content="light dark">
+  <meta name="supported-color-schemes" content="light dark">
 </head>
-<body>
-  <div class="container">
-    <div class="header">
-      <div class="logo"></div>
-      <h1>Deine aktuellen Walk Throughz</h1>
+<body style="margin:0;padding:0;background:#212121;font-family:Arial,Helvetica,sans-serif;color:#ffffff;">
+
+  <div style="max-width:600px;margin:20px auto;background:#2c2c2c;border-radius:8px;overflow:hidden;">
+
+    <!-- Header / Logo block -->
+    <div style="background:#222222;padding:20px;text-align:center;color:#ffffff;">
+      <div aria-hidden="true"
+           style="
+             margin:0 auto;
+             height:110px;
+             width:350px;
+             max-width:100%;
+             background-color:#222222;
+             background-image:url('https://res.cloudinary.com/dftvlksve/image/upload/v1756129458/Image20250819174530_hjqear.jpg');
+             background-repeat:no-repeat;
+             background-position:center;
+             background-size:contain;
+           ">
+      </div>
     </div>
-    <div class="content">
-      <p>Hey Entdecker 👋,</p>
-      <div style="background:#1a1a1a; padding:20px; border-radius:8px; color: #fff;">
+
+    <!-- Title -->
+    <div style="text-align:center;padding:12px 20px 0;">
+      <h1 style="font-size:20px;line-height:28px;margin:0;font-weight:700;color:#ffffff !important;">
+        Deine aktuellen Walk Throughz
+      </h1>
+    </div>
+
+    <!-- Main content -->
+    <div style="padding:30px;font-size:16px;line-height:24px;color:#ffffff !important;">
+      <p style="margin:0 0 16px;color:#ffffff !important;">Hey Entdecker 👋,</p>
+
+      <div style="background:#1a1a1a;padding:20px;border-radius:8px;color:#ffffff !important;font-size:16px;line-height:24px;">
         ${content}
       </div>
-      <p>Freu dich auf weitere spannende Angebote & Erlebnisse.</p>
-      <p>Bis bald!</p>
+
+      <p style="margin:16px 0 0;color:#ffffff !important;">
+        Freu dich auf weitere spannende Angebote &amp; Erlebnisse.
+      </p>
+      <p style="margin:8px 0 16px;color:#ffffff !important;">Bis bald!</p>
+
+      <!-- Sign-off -->
+      <p style="margin:24px 0 0;font-size:16px;color:#ffffff !important;text-align:center;">
+        Viele Grüße<br/>Dein Walk Throughz Team
+      </p>
     </div>
-    <div class="footer">
-      © ${new Date().getFullYear()} Walk Throughz. Alle Rechte vorbehalten. <br/>
-      <a class="btn" href="${
+
+    <!-- Footer -->
+    <div style="background:#222222;padding:20px;text-align:center;font-size:13px;color:#aaaaaa;">
+      <span style="color:#aaaaaa;">© ${new Date().getFullYear()} Walk Throughz. Alle Rechte vorbehalten.</span><br/>
+
+      <a href="${
         process.env.APP_URL
-      }/api/newsletter/unsubscribe?email=${encodeURIComponent(email)}">
+      }/api/newsletter/unsubscribe?email=${encodeURIComponent(email)}"
+         style="display:inline-block;margin-top:15px;padding:10px 18px;background:#e53935;color:#ffffff !important;text-decoration:none;border-radius:6px;font-size:14px;line-height:20px;">
         Vom Newsletter abmelden
       </a>
     </div>
+
   </div>
+
 </body>
 </html>
-
-`,
+  `,
       });
     }
 
