@@ -1,151 +1,126 @@
-import cron from 'node-cron'
-import Deal from '../models/Deal.model'
-import Booking from '../models/Booking.model'
-import Notification from '../models/Notification.model'
-import { io } from '../server'
+import cron from "node-cron";
+import Deal from "../models/Deal.model";
+import Booking from "../models/Booking.model";
+import Notification from "../models/Notification.model";
+import { io } from "../server";
 
 export const deactivateExpiredDeals = () => {
-  cron.schedule('*/10 * * * *', async () => {
+  cron.schedule("*/10 * * * *", async () => {
     try {
-      const now = new Date()
+      const now = new Date();
 
+      // Keep the query simple: check active deals and any that may need schedule cleanup
       const dealsToUpdate = await Deal.find({
         $or: [
-          { 'scheduleDates.active': true, 'scheduleDates.date': { $lte: now } },
-          {
-            'scheduleDates.active': true,
-            'scheduleDates.participationsLimit': { $gt: 0 },
-            'scheduleDates.bookedCount': { $exists: true },
-          },
-          { status: 'activate' },
+          { status: "activate" }, // we only *deactivate* from active
+          { "scheduleDates.active": true }, // in case entries need flipping to false
+          { timer: "on" }, // timer maintenance
         ],
-      })
+      });
 
       for (const deal of dealsToUpdate) {
-        let shouldUpdateDeal = false
-        let hasActiveDates = false
+        let shouldUpdateDeal = false;
+        let hasActiveDates = false;
 
-        const updatedScheduleDates = (deal.scheduleDates as any[]).map(
+        const updatedScheduleDates = ((deal.scheduleDates as any[]) ?? []).map(
           (schedule) => {
-            const isPastDate = schedule.date <= now
-            const isFullyBooked =
-              (schedule.participationsLimit ?? 0) > 0 &&
-              (schedule.bookedCount ?? 0) >= schedule.participationsLimit
+            const isPastDate = schedule.date && new Date(schedule.date) <= now;
+            const limit = schedule.participationsLimit ?? 0;
+            const booked = schedule.bookedCount ?? 0;
+            const isFullyBooked = limit > 0 && booked >= limit;
 
             if (schedule.active && (isPastDate || isFullyBooked)) {
-              shouldUpdateDeal = true
-              return { ...(schedule.toObject?.() ?? schedule), active: false }
+              shouldUpdateDeal = true;
+              return { ...(schedule.toObject?.() ?? schedule), active: false };
             }
 
             if (
               schedule.active &&
-              schedule.date > now &&
-              (!schedule.participationsLimit ||
-                (schedule.bookedCount ?? 0) < schedule.participationsLimit)
+              schedule.date &&
+              new Date(schedule.date) > now &&
+              (limit === 0 || booked < limit)
             ) {
-              hasActiveDates = true
+              hasActiveDates = true;
             }
 
-            return schedule
+            return schedule;
           }
-        )
+        );
 
-        // More robust status determination
-        const newStatus = hasActiveDates ? 'activate' : 'deactivate'
+        // ❌ Do not auto-activate. Only deactivate if there are no valid active dates.
+        const shouldDeactivate = !hasActiveDates && deal.status === "activate"; // CHANGED
 
-        // Always update if status needs to change, regardless of date changes
-        if (deal.status !== newStatus || shouldUpdateDeal) {
-          const updateData: any = {
-            status: newStatus,
-          }
+        if (shouldUpdateDeal || shouldDeactivate) {
+          const updateData: any = {};
 
           if (shouldUpdateDeal) {
-            updateData.scheduleDates = updatedScheduleDates
+            updateData.scheduleDates = updatedScheduleDates;
           }
 
-          await Deal.findByIdAndUpdate(deal._id, updateData)
+          if (shouldDeactivate) {
+            updateData.status = "deactivate"; // CHANGED
+          }
 
-          // Notification logic remains the same
-          if (newStatus === 'deactivate' && deal.status === 'activate') {
-            const bookings = await Booking.find({
-              dealsId: deal._id,
-              notifyMe: true,
-            }).populate('userId')
+          if (Object.keys(updateData).length > 0) {
+            await Deal.findByIdAndUpdate(deal._id, updateData);
 
-            for (const booking of bookings) {
-              const user = booking.userId as any
-              const notification = await Notification.create({
-                userId: user._id,
-                message: `Deal "${deal.title}" has been deactivated as all dates have passed or are fully booked.`,
-                type: 'deal_status_change',
-                dealId: deal._id,
-              })
+            // Notify users only when we *actually* turned it off
+            if (shouldDeactivate) {
+              const bookings = await Booking.find({
+                dealsId: deal._id,
+                notifyMe: true,
+              }).populate("userId");
 
-              io.to(user._id.toString()).emit('deal_status_change', {
-                id: notification._id,
-                message: `Deal "${deal.title}" is no longer available`,
-                deal: { ...deal.toObject(), status: 'deactivate' },
-                newStatus: 'deactivate',
-              })
+              for (const booking of bookings) {
+                const user = booking.userId as any;
+                const notification = await Notification.create({
+                  userId: user._id,
+                  message: `Deal "${deal.title}" has been deactivated as all dates have passed or are fully booked.`,
+                  type: "deal_status_change",
+                  dealId: deal._id,
+                });
 
-              // ✅ Send email notification
-              // if (user.email) {
-              //   const subject = `Deal "${deal.title}" wurde deaktiviert`
-              //   const text = `Hallo ${user.name || ''},\n\nDer Deal "${
-              //     deal.title
-              //   }" ist nicht mehr verfügbar, da alle Termine vorbei sind oder ausgebucht wurden.\n\nViele Grüße\nDein Walk Throughz Team`
+                io.to(user._id.toString()).emit("deal_status_change", {
+                  id: notification._id,
+                  message: `Deal "${deal.title}" is no longer available`,
+                  deal: { ...deal.toObject(), status: "deactivate" },
+                  newStatus: "deactivate",
+                });
 
-              //   const html = `
-              //     <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 500px; margin: auto; border: 1px solid #ccc; border-radius: 8px;">
-              //       <h2 style="text-align: center; color: #000;"> Deal deaktiviert</h2>
-              //       <p style="font-size: 16px; color: #000;">
-              //         Hallo ${user.name || 'Nutzer'},
-              //       </p>
-              //       <p style="font-size: 16px; color: #000;">
-              //         Der Deal <strong>${
-              //           deal.title
-              //         }</strong> ist <strong>nicht mehr verfügbar</strong>,
-              //         da alle Termine vorbei sind oder ausgebucht wurden.
-              //       </p>
-              //       <p style="font-size: 14px; color: #000; text-align: center;">
-              //         Viele Grüße,<br/>
-              //         Dein <strong>Walk Throughz</strong> Team
-              //       </p>
-              //     </div>
-              //   `
-
-              //   await sendMail(user.email, subject, text, html)
-              // }
+                // email sending code (optional)...
+              }
             }
           }
         }
       }
 
-      console.log(`[${new Date().toISOString()}] Deal status update completed.`)
+      console.log(
+        `[${new Date().toISOString()}] Deal status update completed.`
+      );
 
-      // Timer logic remains the same
+      // Timer maintenance (unchanged)
       const dealsWithTimer = await Deal.find({
-        timer: 'on',
+        timer: "on",
         time: { $ne: null },
-      })
+      });
 
       for (const deal of dealsWithTimer) {
-        const updatedAt = deal.updatedAt ? new Date(deal.updatedAt) : null
-        if (!updatedAt) continue
+        const updatedAt = deal.updatedAt ? new Date(deal.updatedAt) : null;
+        if (!updatedAt) continue;
 
         const endTime = new Date(
           updatedAt.getTime() + (deal.time || 0) * 60 * 1000
-        )
+        );
 
         if (now >= endTime) {
-          await Deal.findByIdAndUpdate(deal._id, { timer: 'off' })
+          await Deal.findByIdAndUpdate(deal._id, { timer: "off" });
           console.log(
             `Timer turned off for deal "${deal.title}" (ID: ${deal._id}) – duration ended.`
-          )
+          );
         }
       }
     } catch (error) {
-      console.error('Error in deal status update job:', error)
+      console.error("Error in deal status update job:", error);
     }
-  })
-}
+  });
+};

@@ -19,13 +19,11 @@ export const sendBookingConfirmationEmail = async (
 
   const formattedDate = new Date(
     bookingDetails.scheduleDate
-  ).toLocaleDateString("en-US", {
+  ).toLocaleDateString("de-DE", {
     weekday: "long",
     year: "numeric",
     month: "long",
     day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
   });
 
   const htmlContent = `<!DOCTYPE html>

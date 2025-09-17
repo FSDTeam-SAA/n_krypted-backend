@@ -38,6 +38,28 @@ export const createDeal = async (
   req: Request,
   res: Response
 ): Promise<void> => {
+  // ── small helpers (kept local to this file) ────────────────────────────────
+  const collapseWhitespace = (s: unknown) =>
+    String(s ?? "")
+      .normalize("NFKC")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const titleCase = (s: string) =>
+    s.replace(/\p{L}[\p{L}\p{M}'-]*/gu, (word) =>
+      word
+        .split("-")
+        .map(
+          (part) =>
+            part.charAt(0).toLocaleUpperCase() +
+            part.slice(1).toLocaleLowerCase()
+        )
+        .join("-")
+    );
+
+  const sanitizePlace = (raw: unknown) => titleCase(collapseWhitespace(raw));
+  // ──────────────────────────────────────────────────────────────────────────
+
   try {
     const {
       title,
@@ -84,17 +106,30 @@ export const createDeal = async (
       return;
     }
 
-    // Parse location string (coming from form-data)
+    // Parse location (string or object) and SANITIZE country/city
     let country = "";
     let city = "";
     try {
-      const parsedLocation = JSON.parse(req.body.location);
-      country = parsedLocation.country;
-      city = parsedLocation.city;
+      const parsedLocation =
+        typeof req.body.location === "string"
+          ? JSON.parse(req.body.location)
+          : req.body.location;
+
+      country = sanitizePlace(parsedLocation?.country);
+      city = sanitizePlace(parsedLocation?.city);
     } catch (e) {
       res.status(400).json({
         success: false,
-        message: "Invalid location format. Expected JSON string.",
+        message: "Invalid location format. Expected JSON string or object.",
+      });
+      return;
+    }
+
+    // Validate after sanitization
+    if (!country || !city) {
+      res.status(400).json({
+        success: false,
+        message: "Country and city are required",
       });
       return;
     }
@@ -102,25 +137,25 @@ export const createDeal = async (
     // Parse and validate schedule dates
     let parsedScheduleDates: ScheduleDate[] = [];
     try {
-      parsedScheduleDates =
+      const raw =
         typeof scheduleDates === "string"
           ? JSON.parse(scheduleDates)
           : scheduleDates;
 
-      parsedScheduleDates = parsedScheduleDates.map((dateInfo: any) => {
-        const date = new Date(dateInfo.date);
-        if (isNaN(date.getTime())) throw new Error("Invalid date format");
-        return {
-          date,
-          active: true,
-          participationsLimit:
-            dateInfo.participationsLimit || participationsLimit || 0,
-          time: dateInfo.time || time || null,
-          bookedCount: 0,
-        };
-      });
-
-      parsedScheduleDates.sort((a, b) => a.date.getTime() - b.date.getTime());
+      parsedScheduleDates = (raw ?? [])
+        .map((dateInfo: any) => {
+          const date = new Date(dateInfo?.date);
+          if (isNaN(date.getTime())) throw new Error("Invalid date format");
+          return {
+            date,
+            active: true,
+            participationsLimit:
+              dateInfo?.participationsLimit ?? participationsLimit ?? 0,
+            time: dateInfo?.time ?? time ?? null,
+            bookedCount: 0,
+          };
+        })
+        .sort((a: any, b: any) => a.date.getTime() - b.date.getTime());
     } catch (e) {
       res.status(400).json({
         success: false,
@@ -151,7 +186,7 @@ export const createDeal = async (
       images = await Promise.all(uploadPromises);
     }
 
-    const location = { country, city };
+    const location = { country, city }; // ← sanitized & stable
 
     // Create the deal
     const deal = new Deal({
@@ -161,7 +196,12 @@ export const createDeal = async (
       price,
       location,
       images,
-      offers: typeof offers === "string" ? JSON.parse(offers) : [],
+      offers:
+        typeof offers === "string"
+          ? JSON.parse(offers)
+          : Array.isArray(offers)
+          ? offers
+          : [],
       status: parsedScheduleDates.length > 0 ? "activate" : "deactivate",
       category: new mongoose.Types.ObjectId(category),
       time,
@@ -176,13 +216,11 @@ export const createDeal = async (
 
     res.status(201).json({ success: true, deal: populatedDeal });
   } catch (error: any) {
-    res
-      .status(500)
-      .json({
-        success: false,
-        message: "Failed to create deal",
-        error: error.message,
-      });
+    res.status(500).json({
+      success: false,
+      message: "Failed to create deal",
+      error: error.message,
+    });
   }
 };
 
@@ -314,7 +352,11 @@ export const getAllDeals = async (
       filter.status = status;
     }
 
+    console.log(filter);
+
     const totalItems = await Deal.countDocuments(filter);
+
+    console.log("Total items found:", totalItems);
 
     const deals = await Deal.find(filter)
       .populate("category")
@@ -428,14 +470,52 @@ export const updateDeal = async (
   req: Request,
   res: Response
 ): Promise<void> => {
+  // ── small helpers ─────────────────────────────────────────────────────────
+  const safeParseJSON = <T = any>(v: unknown): T => {
+    if (typeof v !== "string") return v as T;
+    try {
+      return JSON.parse(v) as T;
+    } catch {
+      return v as T;
+    }
+  };
+
+  const collapseWhitespace = (s: unknown) =>
+    String(s ?? "")
+      .normalize("NFKC")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const titleCase = (s: string) =>
+    s.replace(/\p{L}[\p{L}\p{M}'-]*/gu, (word) =>
+      word
+        .split("-")
+        .map(
+          (part) =>
+            part.charAt(0).toLocaleUpperCase() +
+            part.slice(1).toLocaleLowerCase()
+        )
+        .join("-")
+    );
+
+  const sanitizePlace = (raw: unknown) => titleCase(collapseWhitespace(raw));
+
+  const isValidDate = (d: any) => d instanceof Date && !isNaN(d.getTime());
+
+  const uniq = <T>(arr: T[]) => Array.from(new Set(arr));
+  // ──────────────────────────────────────────────────────────────────────────
+
   try {
     const { id } = req.params;
 
-    const updateData = { ...req.body };
-    let imagesToRemove: string[] = [];
+    const updateData: any = { ...req.body };
 
+    // Parse arrays that may arrive as JSON strings
+    let imagesToRemove: string[] = [];
     if (typeof updateData.imagesToRemove === "string") {
-      imagesToRemove = JSON.parse(updateData.imagesToRemove);
+      imagesToRemove = safeParseJSON<string[]>(updateData.imagesToRemove) || [];
+    } else if (Array.isArray(updateData.imagesToRemove)) {
+      imagesToRemove = updateData.imagesToRemove;
     }
 
     // Get existing deal
@@ -445,9 +525,13 @@ export const updateDeal = async (
       return;
     }
 
-    // Handle images
-    let finalImages = existingDeal.images || [];
-    finalImages = finalImages.filter((img) => !imagesToRemove.includes(img));
+    // ---- Images handling ----------------------------------------------------
+    let finalImages = Array.isArray(existingDeal.images)
+      ? existingDeal.images
+      : [];
+    if (imagesToRemove.length) {
+      finalImages = finalImages.filter((img) => !imagesToRemove.includes(img));
+    }
 
     let newImages: string[] = [];
     if (req.files && Array.isArray(req.files)) {
@@ -466,63 +550,106 @@ export const updateDeal = async (
       );
       newImages = await Promise.all(uploadPromises);
     }
-    finalImages = [...finalImages, ...newImages];
+    finalImages = uniq([...finalImages, ...newImages]);
 
-    // ---- Schedule Dates Handling ----
+    // ---- Schedule Dates Handling -------------------------------------------
 
-    // 1. First handle removals if any
+    // 1) removals
     if (updateData.scheduleDatesToRemove) {
-      const scheduleDatesToRemove =
-        typeof updateData.scheduleDatesToRemove === "string"
-          ? JSON.parse(updateData.scheduleDatesToRemove)
-          : updateData.scheduleDatesToRemove;
-
-      existingDeal.scheduleDates = existingDeal.scheduleDates?.filter(
-        (sd) => !scheduleDatesToRemove.includes(sd._id?.toString() as any)
+      const scheduleDatesToRemove = safeParseJSON<string[]>(
+        updateData.scheduleDatesToRemove
       );
+      if (
+        Array.isArray(scheduleDatesToRemove) &&
+        scheduleDatesToRemove.length
+      ) {
+        existingDeal.scheduleDates = (existingDeal.scheduleDates || []).filter(
+          (sd: any) => !scheduleDatesToRemove.includes(String(sd._id))
+        );
+      }
     }
 
-    // 2. Then handle additions if any (merge with existing)
+    // 2) additions/updates (merge)
     if (updateData.scheduleDates) {
       const newScheduleDates =
-        typeof updateData.scheduleDates === "string"
-          ? JSON.parse(updateData.scheduleDates)
-          : updateData.scheduleDates;
+        safeParseJSON<any[]>(updateData.scheduleDates) || [];
 
-      const formattedNewDates = newScheduleDates.map((dateInfo: any) => ({
-        date: new Date(dateInfo.date),
-        active: dateInfo.active !== false,
-        participationsLimit: dateInfo.participationsLimit || 0,
-        time: dateInfo.time || null,
-        bookedCount: dateInfo.bookedCount || 0,
-        _id: dateInfo._id || new mongoose.Types.ObjectId(), // Preserve ID if updating, or create new
-      }));
+      const formattedNewDates = newScheduleDates.map((dateInfo: any) => {
+        const date = new Date(dateInfo?.date);
+        if (!isValidDate(date)) {
+          throw new Error("Invalid date format in scheduleDates");
+        }
+        return {
+          date,
+          active: dateInfo?.active !== false,
+          participationsLimit: dateInfo?.participationsLimit ?? 0,
+          time: dateInfo?.time ?? null,
+          bookedCount: dateInfo?.bookedCount ?? 0,
+          _id: dateInfo?._id
+            ? new mongoose.Types.ObjectId(dateInfo._id)
+            : new mongoose.Types.ObjectId(),
+        };
+      });
 
-      // Merge new dates with existing ones
-      // First filter out any existing dates that might be updated (same _id)
-      existingDeal.scheduleDates = existingDeal.scheduleDates?.filter(
-        (existing) =>
-          !formattedNewDates.some(
-            (newDate: any) =>
-              newDate._id &&
-              (existing._id?.toString() as any) === newDate._id.toString()
-          )
+      // Remove any existing entries that are being updated (same _id)
+      const formattedIds = new Set(
+        formattedNewDates.map((d: any) => String(d._id))
+      );
+      existingDeal.scheduleDates = (existingDeal.scheduleDates || []).filter(
+        (existing: any) => !formattedIds.has(String(existing._id))
       );
 
-      // Then add all new/updated dates
-      existingDeal.scheduleDates?.push(...formattedNewDates);
+      // Add new/updated
+      existingDeal.scheduleDates.push(...formattedNewDates);
+
+      // Sort ascending by date
+      existingDeal.scheduleDates.sort(
+        (a: any, b: any) =>
+          new Date(a.date).getTime() - new Date(b.date).getTime()
+      );
     }
 
-    // Update other fields
+    // ---- Location sanitization (if provided) --------------------------------
+    // Accepts either stringified JSON or object under updateData.location
+    if (updateData.location != null) {
+      const loc = safeParseJSON<any>(updateData.location);
+      const sanitizedCountry = sanitizePlace(loc?.country);
+      const sanitizedCity = sanitizePlace(loc?.city);
+
+      if (!sanitizedCountry || !sanitizedCity) {
+        res.status(400).json({
+          success: false,
+          message: "Country and city are required in location",
+        });
+        return;
+      }
+
+      // keep model shape the same
+      existingDeal.location = {
+        ...(existingDeal.location || {}),
+        country: sanitizedCountry,
+        city: sanitizedCity,
+      };
+
+      // remove from update bag so it doesn't overwrite the object above
+      delete updateData.location;
+    }
+
+    // ---- Category casting (if provided) -------------------------------------
     if (updateData.category) {
       updateData.category = new mongoose.Types.ObjectId(updateData.category);
     }
 
-    // Apply updates to other fields excluding scheduleDates related fields
+    // ---- Apply remaining simple fields --------------------------------------
     const fieldsToUpdate = { ...updateData };
     delete fieldsToUpdate.scheduleDates;
     delete fieldsToUpdate.scheduleDatesToRemove;
     delete fieldsToUpdate.imagesToRemove;
+
+    // Optional: trim shortDescription if present
+    if (typeof fieldsToUpdate.shortDescription === "string") {
+      fieldsToUpdate.shortDescription = fieldsToUpdate.shortDescription.trim();
+    }
 
     Object.assign(existingDeal, fieldsToUpdate);
     existingDeal.images = finalImages;
@@ -530,7 +657,6 @@ export const updateDeal = async (
     await existingDeal.save();
 
     const updatedDeal = await Deal.findById(id).populate("category");
-
     res.status(200).json({ success: true, deal: updatedDeal });
   } catch (error: any) {
     res.status(500).json({
@@ -558,6 +684,7 @@ export const changeDealStatus = async (
     // Toggle status
     const newStatus =
       currentDeal.status === "activate" ? "deactivate" : "activate";
+    const isActivation = newStatus === "activate";
 
     // Update deal
     const deal = await Deal.findByIdAndUpdate(
@@ -575,41 +702,39 @@ export const changeDealStatus = async (
 
       for (const booking of bookings) {
         const userdata = booking.userId as any;
-        const userId = userdata._id;
-        const userEmail = userdata.email;
+        const userId = userdata._id as string;
+        const userEmail = userdata.email as string | undefined;
+
+        // Make a shared message for DB + realtime notifications
+        const availabilityText = isActivation
+          ? "verfügbar"
+          : "nicht mehr verfügbar";
+        const notificationMessage = `Der folgende Deal ist jetzt ${availabilityText}`;
 
         // Create DB notification
         const noti = await Notification.create({
           userId,
-          message: `Der folgende Deal ist jetzt ${
-            newStatus === "activate" ? "verfügbar" : "nicht mehr verfügbar"
-          }`,
+          message: notificationMessage,
           type: "deal_status_change",
           dealId: id,
         });
 
-        // Real-time notification
+        // Real-time notification (socket)
         io.to(userId.toString()).emit("deal_status_change", {
           id: noti._id,
-          message: `Der folgende Deal ist jetzt ${
-            newStatus === "activate" ? "verfügbar" : "nicht mehr verfügbar"
-          }`,
+          message: notificationMessage,
           deal,
           newStatus,
         });
 
-        // Email notification
-        if (userEmail) {
-          const subject =
-            newStatus === "activate"
-              ? "Deal ist jetzt verfügbar!"
-              : "Deal wurde deaktiviert";
-
-          const text = `Hallo ${
+        // Email notification — ONLY on activation
+        if (isActivation && userEmail) {
+          const subject = "Dein Walk Through ist zurück!";
+          const text = `Hey ${
             userdata.name || ""
-          },\n\nDer folgende Deal ist jetzt ${
-            newStatus === "activate" ? "verfügbar" : "nicht mehr verfügbar"
-          }:\n\n${deal?.title}\n\nViele Grüße\nDein Walk Throughz Team`;
+          },\n\nder folgende Deal ist jetzt verfügbar:\n\n${
+            deal?.title
+          }\n\nViele Grüße\nDein Walk Throughz Team`;
 
           const html = `
   <div style="font-family: Arial, sans-serif; background:#2c2c2c; color:#ffffff; max-width:600px; margin:auto; border-radius:8px; overflow:hidden;">
@@ -630,25 +755,23 @@ export const changeDealStatus = async (
     <!-- Title -->
     <div style="text-align:center; padding:12px 20px 0;">
       <h1 style="font-size:20px; line-height:28px; margin:0; font-weight:700; color:#ffffff !important;">
-        ${newStatus === "activate" ? "Deal verfügbar!" : "Deal deaktiviert"}
+        Dein Walk Through wartet!
       </h1>
     </div>
 
     <!-- Body -->
     <div style="padding:20px; font-size:16px; line-height:24px; color:#ffffff !important;">
       <p style="margin:0 0 16px; color:#ffffff !important;">
-        Hallo ${userdata.name || "Nutzer"},
+        Hey ${userdata.name || "Nutzer"},
       </p>
       <p style="margin:0 0 16px; color:#ffffff !important;">
-        Der folgende Deal ist jetzt <strong>${
-          newStatus === "activate" ? "verfügbar" : "nicht mehr verfügbar"
-        }</strong>:
+        der folgende Walk Through ist jetzt <strong>verfügbar</strong>:
       </p>
 
       <!-- Deal card -->
       <div style="background:#1a1a1a; padding:15px; border-radius:6px; margin:20px 0; color:#ffffff !important;">
         <strong>${deal?.title}</strong><br/>
-        Kategorie: ${(deal?.category as any)?.name || "Unbekannt"}
+        Kategorie: ${(deal?.category as any).categoryName || "Unbekannt"}
       </div>
 
       <!-- Sign-off -->

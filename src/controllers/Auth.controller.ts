@@ -347,11 +347,12 @@ Dein Walk Throughz Team`,
     </div>
 
     <!-- Title -->
-    <div style="text-align:center; padding:12px 20px 0;">
-      <h1 style="font-size:20px; line-height:28px; margin:0; font-weight:700; color:#ffffff !important;">
-        Neues Passwort, neues Glück
-      </h1>
-    </div>
+   <div style="text-align:center; padding:12px 20px 12px;">
+  <h1 style="font-size:20px; line-height:28px; margin:0; font-weight:700; color:#ffffff !important;">
+    Neues Passwort,<br/>neues Glück
+  </h1>
+</div>
+
 
     <!-- Content -->
     <div style="padding:30px; font-size:16px; line-height:24px; color:#ffffff !important;">
@@ -363,7 +364,7 @@ Dein Walk Throughz Team`,
         </p>
 
         <a href="${resetUrl}" 
-           style="display:inline-block; margin:10px 0; padding:12px 20px; background:#e53935; color:#ffffff !important; border-radius:6px; text-decoration:none; font-weight:bold; font-size:16px;">
+           style="display:inline-block; margin:10px 0; padding:12px 20px; background:#000000; color:#ffffff !important; border:1px solid #ffffff; border-radius:6px; text-decoration:none; font-weight:bold; font-size:16px;">
           Neues Passwort wählen
         </a>
 
@@ -389,6 +390,7 @@ Dein Walk Throughz Team`,
   </div>
 </body>
 </html>
+
 `,
     });
 

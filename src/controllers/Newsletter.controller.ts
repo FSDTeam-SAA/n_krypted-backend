@@ -214,7 +214,7 @@ export const sendNewsletter = async (req: Request, res: Response) => {
         process.env.APP_URL
       }/api/newsletter/unsubscribe?email=${encodeURIComponent(email)}"
          style="display:inline-block;margin-top:15px;padding:10px 18px;background:#e53935;color:#ffffff !important;text-decoration:none;border-radius:6px;font-size:14px;line-height:20px;">
-        Vom Newsletter abmelden
+        Newsletter abbestellen
       </a>
     </div>
 
