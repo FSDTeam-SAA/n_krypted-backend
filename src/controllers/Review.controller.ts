@@ -29,13 +29,11 @@ export const createReview = async (
       isBooked: true,
     });
     if (!checkBook) {
-      res
-        .status(400)
-        .json({
-          success: false,
-          message:
-            "Du musst den Deal zuerst buchen, bevor du ihn bewerten kannst.",
-        });
+      res.status(400).json({
+        success: false,
+        message:
+          "Du musst den Deal zuerst buchen, bevor du ihn bewerten kannst.",
+      });
       return;
     }
     const review = await Review.create({
@@ -129,7 +127,10 @@ export const deleteReview = async (
       res.status(404).json({ success: false, message: "Review not found" });
       return void 0;
     }
-    if (review.userID.toString() !== req.user?.id) {
+    if (
+      review.userID.toString() !== req.user?.id &&
+      req.user?.role !== "admin"
+    ) {
       res.status(403).json({ success: false, message: "Unauthorized" });
       return void 0;
     }
