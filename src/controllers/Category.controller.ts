@@ -4,6 +4,51 @@ import cloudinary from '../utils/cloudinary'
 import Deal from '../models/Deal.model'
 // Get all categories
 
+export const createCategory = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    let imageUrl = ''
+    if (req.file) {
+      imageUrl = (await new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          { resource_type: 'image' },
+          (error, result) => {
+            if (error) return reject(error)
+            resolve(result?.secure_url || '')
+          }
+        )
+        stream.end((req.file as Express.Multer.File).buffer)
+      })) as string
+    }
+
+    if (!imageUrl) {
+      res.status(400).json({
+        success: false,
+        message: 'Image is required',
+      })
+      return
+    }
+
+    const category = new Category({
+      categoryName: req.body.categoryName,
+      image: imageUrl,
+      dealId: req.body.dealId,
+    })
+
+    await category.save()
+    res.status(201).json({ success: true, category })
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create category',
+      error: error.message,
+    })
+  }
+}
+
+
 export const getAllCategoriesWithDealCounts = async (
   req: Request,
   res: Response
@@ -66,49 +111,6 @@ export const getAllCategoriesWithDealCounts = async (
 }
 
 // Create a category
-export const createCategory = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
-  try {
-    let imageUrl = ''
-    if (req.file) {
-      imageUrl = (await new Promise((resolve, reject) => {
-        const stream = cloudinary.uploader.upload_stream(
-          { resource_type: 'image' },
-          (error, result) => {
-            if (error) return reject(error)
-            resolve(result?.secure_url || '')
-          }
-        )
-        stream.end((req.file as Express.Multer.File).buffer)
-      })) as string
-    }
-
-    if (!imageUrl) {
-      res.status(400).json({
-        success: false,
-        message: 'Image is required',
-      })
-      return
-    }
-
-    const category = new Category({
-      categoryName: req.body.categoryName,
-      image: imageUrl,
-      dealId: req.body.dealId,
-    })
-
-    await category.save()
-    res.status(201).json({ success: true, category })
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: 'Failed to create category',
-      error: error.message,
-    })
-  }
-}
 
 // Delete a category
 export const deleteCategory = async (

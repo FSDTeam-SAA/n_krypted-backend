@@ -1,6 +1,10 @@
 import Subscription from "../models/Newsletter.model";
 import { Request, Response } from "express";
 import nodemailer from "nodemailer";
+import {
+  replaceInlineImagesWithCloudinary,
+  htmlToTextFallback,
+} from "../utils/inlineImages";
 
 // Subscribe to newsletter
 export const subscribe = async (req: Request, res: Response): Promise<void> => {
@@ -62,7 +66,7 @@ export const unsubscribe = async (
       </head>
       <body>
         <div class="box">
-          <h2>Sie haben sich erfolgreich vom Newsletter abgemeldet.</h2>
+          <h2>Du hast dich erfolgreich vom Newsletter abgemeldet.</h2>
         </div>
       </body>
       </html>
@@ -71,35 +75,6 @@ export const unsubscribe = async (
     res.status(500).send("<h2>Interner Serverfehler</h2>");
   }
 };
-
-// export const unsubscribe = async (
-//   req: Request,
-//   res: Response
-// ): Promise<void> => {
-//   try {
-//     const { email } = req.body;
-//     if (!email) {
-//       res
-//         .status(400)
-//         .json({ success: false, message: "E-Mail ist erforderlich" });
-//       return;
-//     }
-//     const deleted = await Subscription.findOneAndDelete({ email });
-//     if (!deleted) {
-//       res
-//         .status(404)
-//         .json({ success: false, message: "E-Mail nicht gefunden" });
-//       return;
-//     }
-//     res.status(200).json({ success: true, message: "Erfolgreich abgemeldet" });
-//   } catch (error: any) {
-//     res.status(500).json({
-//       success: false,
-//       message: "Interner Serverfehler",
-//       error: error.message,
-//     });
-//   }
-// };
 
 // List all subscribers (admin only, simple version)
 export const listSubscribers = async (
@@ -131,6 +106,10 @@ export const sendNewsletter = async (req: Request, res: Response) => {
       return;
     }
 
+    // 🔁 Convert any base64 images in the Quill HTML to Cloudinary URLs
+    const processedContent = await replaceInlineImagesWithCloudinary(content);
+    const textFallback = htmlToTextFallback(processedContent);
+
     const subscribers = await Subscription.find({}, "email");
     const emails = subscribers.map((s: any) => s.email);
 
@@ -149,7 +128,7 @@ export const sendNewsletter = async (req: Request, res: Response) => {
         from: `"Walk Throughz" <${process.env.NEWSLETTER_EMAIL_USER}>`,
         to: email,
         subject,
-        text: content,
+        text: textFallback, // ✅ good plain-text fallback
         html: `
 <!DOCTYPE html>
 <html lang="de">
@@ -189,10 +168,10 @@ export const sendNewsletter = async (req: Request, res: Response) => {
 
     <!-- Main content -->
     <div style="padding:30px;font-size:16px;line-height:24px;color:#ffffff !important;">
-      <p style="margin:0 0 16px;color:#ffffff !important;">Hey Entdecker 👋,</p>
+      <p style="margin:0 0 16px;color:#ffffff !important;">Hey Entdecker 👋</p>
 
       <div style="background:#1a1a1a;padding:20px;border-radius:8px;color:#ffffff !important;font-size:16px;line-height:24px;">
-        ${content}
+        ${processedContent}
       </div>
 
       <p style="margin:16px 0 0;color:#ffffff !important;">
@@ -201,8 +180,8 @@ export const sendNewsletter = async (req: Request, res: Response) => {
       <p style="margin:8px 0 16px;color:#ffffff !important;">Bis bald!</p>
 
       <!-- Sign-off -->
-      <p style="margin:24px 0 0;font-size:16px;color:#ffffff !important;text-align:center;">
-        Viele Grüße<br/>Dein Walk Throughz Team
+      <p style="margin:24px 0 0; font-size:16px; color:#ffffff !important; text-align:center;">
+        Viele Grüße<br/>Dein <strong>Walk Throughz</strong> Team
       </p>
     </div>
 
@@ -222,7 +201,7 @@ export const sendNewsletter = async (req: Request, res: Response) => {
 
 </body>
 </html>
-  `,
+        `,
       });
     }
 

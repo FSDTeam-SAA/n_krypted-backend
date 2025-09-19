@@ -165,9 +165,9 @@ export const sendBookingConfirmationEmail = async (
       <p>Falls du Fragen hast, melde dich gerne jederzeit bei uns.</p>
       
       <!-- Centered sign-off -->
-      <p style="margin:24px 0 0; font-size:16px; color:#ffffff; text-align:center;">
-        Viele Grüße<br/>Dein Walk Throughz Team
-      </p>
+        <p style="margin:24px 0 0; font-size:16px; color:#ffffff !important; text-align:center;">
+        Viele Grüße<br/>Dein <strong>Walk Throughz</strong> Team
+</p>
     </div>
   </div>
 </body>

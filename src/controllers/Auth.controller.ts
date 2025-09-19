@@ -127,7 +127,7 @@ Dein Walk Throughz Team`,
     <!-- Title below the top bar -->
     <div style="padding:0 20px 8px; text-align:center;">
       <h1 style="font-size:20px; line-height:28px; margin:16px 0 0; font-weight:700; color:#ffffff !important; text-align:center;">
-        Willkommen
+        Willkommen!
       </h1>
     </div>
 
@@ -150,9 +150,9 @@ Dein Walk Throughz Team`,
       </p>
 
       <!-- Centered sign-off -->
-      <p style="margin:24px 0 0; font-size:16px; color:#ffffff !important; text-align:center;">
-        Viele Grüße<br/>Dein Walk Throughz Team
-      </p>
+       <p style="margin:24px 0 0; font-size:16px; color:#ffffff !important; text-align:center;">
+        Viele Grüße<br/>Dein <strong>Walk Throughz</strong> Team
+</p>
     </div>
   </div>
   `,
@@ -382,9 +382,9 @@ Dein Walk Throughz Team`,
       </div>
 
       <!-- Sign-off -->
-      <p style="margin:24px 0 0; font-size:16px; color:#ffffff !important; text-align:center;">
-        Viele Grüße<br/>Dein Walk Throughz Team
-      </p>
+       <p style="margin:24px 0 0; font-size:16px; color:#ffffff !important; text-align:center;">
+        Viele Grüße<br/>Dein <strong>Walk Throughz</strong> Team
+</p>
     </div>
 
   </div>
@@ -485,7 +485,7 @@ Dein Walk Throughz Team`,
     <!-- Title below logo -->
     <div style="text-align:center; padding:12px 20px 0;">
       <h1 style="font-size:20px; line-height:28px; margin:0; font-weight:700; color:#ffffff !important;">
-        Willkommen
+        Willkommen!
       </h1>
     </div>
 
@@ -509,8 +509,8 @@ Dein Walk Throughz Team`,
 
       <!-- Sign-off -->
       <p style="margin:24px 0 0; font-size:16px; color:#ffffff !important; text-align:center;">
-        Viele Grüße<br/>Dein Walk Throughz Team
-      </p>
+        Viele Grüße<br/>Dein <strong>Walk Throughz</strong> Team
+</p>
     </div>
 
   </div>
