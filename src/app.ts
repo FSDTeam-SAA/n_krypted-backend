@@ -24,12 +24,16 @@ app.use(
   })
 )
 
-app.use(express.json({ limit: '10mb' }))
-app.use(express.urlencoded({ extended: true, limit: '10mb' }))
+// --- UPDATED LIMITS TO '100mb' ---
+// Allows large base64 image data in the request body to be parsed.
+app.use(express.json({ limit: '100mb' }))
+app.use(express.urlencoded({ extended: true, limit: '100mb' }))
+// ----------------------------------
 
 // JSON parsing and validation middleware
 app.use(
   bodyParser.json({
+    limit: '100mb', // --- UPDATED LIMIT HERE TOO ---
     verify: (req: Request, res: Response, buf: Buffer) => {
       try {
         JSON.parse(buf.toString())

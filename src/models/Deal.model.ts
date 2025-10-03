@@ -26,6 +26,7 @@ const DealSchema = new Schema<IDeal>(
         bookedCount: { type: Number, default: 0 }, // Track bookings per date
       },
     ],
+    popularDeals: { type: Boolean, default: false },
   },
   { timestamps: true }
 )

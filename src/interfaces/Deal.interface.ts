@@ -19,6 +19,7 @@ export interface IDeal {
   _id?: Types.ObjectId
   title: string
   description: string
+  popularDeals?: boolean
   shortDescription: string
   participationsLimit?: number
   price: number
