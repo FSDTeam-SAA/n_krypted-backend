@@ -1019,3 +1019,39 @@ export const toggleTimer = asyncHandler(
     res.status(200).json({ success: true, deal: updatedDeal });
   }
 );
+
+
+// Toggle popularDeals field
+export const togglePopularDeals = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const { id } = req.params;
+    const deal = await Deal.findById(id);
+
+    if (!deal) {
+      res.status(404).json({ success: false, message: "Deal not found" });
+      return;
+    }
+
+    deal.popularDeals = !deal.popularDeals;
+
+    const updatedDeal = await deal.save();
+    res.status(200).json({ success: true, deal: updatedDeal });
+  }
+);
+// Get all popular deals
+export const getPopularDeals = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const popularDeals = await Deal.find({ popularDeals: true })
+      .populate("category")
+      .sort({ createdAt: -1 }); // optional: latest first
+
+    res.status(200).json({
+      success: true,
+      count: popularDeals.length,
+      deals: popularDeals,
+    });
+  }
+);
+
+// Routes (for reference, not part of the controller file)
+

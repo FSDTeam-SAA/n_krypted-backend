@@ -20,6 +20,7 @@ router.get(
   '/deals',
   dealController.getAllDeals
 )
+router.get("/deals/popular", dealController.getPopularDeals);
 
 // Get single deal
 router.get('/deals/:id', dealController.getSingleDeal)
@@ -56,5 +57,15 @@ router.patch(
   authorizeRoles('admin'),
   dealController.toggleTimer
 )
+// popular deals toggle
+router.patch(
+  '/deals/:id/popular',
+  protect,
+  authorizeRoles('admin'),
+  dealController.togglePopularDeals
+)
+
+
+
 
 export default router
