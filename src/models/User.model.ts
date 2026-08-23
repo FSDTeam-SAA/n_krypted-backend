@@ -5,7 +5,9 @@ const UserSchema = new Schema<IUser>(
   {
     name: { type: String, required: true },
     email: { type: String, required: true, unique: true },
-    phoneNumber: { type: String, required: true },
+    // Optional: the sign-up screen collects name, e-mail and password only, so
+    // requiring this rejected every registration the app could produce.
+    phoneNumber: { type: String },
     password: { type: String, required: true },
     verificationCode: { type: String },
     isVerified: { type: Boolean, default: false },

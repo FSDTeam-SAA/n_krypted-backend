@@ -1,11 +1,11 @@
-import app from './app'
 import dotenv from 'dotenv'
+dotenv.config()
+
+import app from './app'
 import { connectDB } from './config/db'
 import http from 'http'
 import { initializeSocket } from './socket/socket'
 import { deactivateExpiredDeals } from './cron/deactivateExpiredDeals'
-
-dotenv.config()
 
 const server = http.createServer(app)
 

@@ -1,7 +1,7 @@
 export interface IUser {
   name: string
   email: string
-  phoneNumber: string
+  phoneNumber?: string
   password: string
   verificationCode?: string
   isVerified?: boolean

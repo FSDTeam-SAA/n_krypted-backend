@@ -8,7 +8,7 @@ import { createOrder, captureOrder } from '../services/paypal.service'
 import Stripe from 'stripe'
 import { sendBookingConfirmationEmail } from '../utils/sendBookingConfirmationEmail'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_placeholder_mock_key', {
   apiVersion: '2025-06-30.basil',
 })
 

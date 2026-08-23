@@ -59,111 +59,114 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     const { name, email, phoneNumber, password } = req.body;
 
     // 1. Check if user exists
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
+    let user = await User.findOne({ email });
+    if (user && user.isVerified) {
       res
         .status(400)
-        .json({ success: false, message: "Benutzer existiert bereits" });
+        .json({ success: false, message: "User already exists and is verified" });
       return;
     }
 
     // 2. Generate verification code
-    const verificationCode = crypto.randomBytes(3).toString("hex");
+    const verificationCode = crypto.randomBytes(3).toString("hex").toUpperCase();
+    console.log(`\n========================================`);
+    console.log(`[AUTH REGISTRATION] Verification OTP for ${email}: ${verificationCode}`);
+    console.log(`========================================\n`);
 
     // 3. Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // 4. Save new user
-    const newUser = new User({
-      name,
-      email,
-      phoneNumber,
-      password: hashedPassword,
-      verificationCode,
-    });
-    await newUser.save();
+    // 4. Save new user or update unverified user
+    if (user) {
+      user.name = name || user.name;
+      user.phoneNumber = phoneNumber || user.phoneNumber;
+      user.password = hashedPassword;
+      user.verificationCode = verificationCode;
+      await user.save();
+    } else {
+      user = new User({
+        name,
+        email,
+        phoneNumber,
+        password: hashedPassword,
+        verificationCode,
+        isVerified: false,
+      });
+      await user.save();
+    }
 
-    // 5. Setup SMTP transporter for united-domains.de
-    const transporter = nodemailer.createTransport({
-      host: "smtps.udag.de", // united-domains SMTP server
-      port: 465,
-      secure: true, // SSL
-      auth: {
-        user: process.env.OTP_EMAIL_USER, // full email address
-        pass: process.env.OTP_EMAIL_PASS, // mailbox password
-      },
-    });
+    // 5. Try to send email via SMTP if configured
+    const emailUser = process.env.OTP_EMAIL_USER || process.env.GMAIL_SMTP_USER || process.env.EMAIL_USER;
+    const emailPass = process.env.OTP_EMAIL_PASS || process.env.GMAIL_SMTP_APP_PASSWORD || process.env.EMAIL_PASS;
 
-    // 6. Send email
-    await transporter.sendMail({
-      from: `"Walk Throughz" <${process.env.OTP_EMAIL_USER}>`,
-      to: email,
-      subject: "Bitte bestätige deine E-Mail",
-      text: `Hey, schön, dass du dabei bist! 
-Um deine Anmeldung abzuschließen, bestätige bitte deine E-Mail mit dem folgenden Code:
+    if (emailUser && emailPass && !emailUser.includes('your_gmail')) {
+      try {
+        const transporter = nodemailer.createTransport({
+          host: emailUser.includes('gmail') ? 'smtp.gmail.com' : 'smtps.udag.de',
+          port: 465,
+          secure: true,
+          auth: {
+            user: emailUser,
+            pass: emailPass,
+          },
+        });
 
-Dein Bestätigungscode lautet: ${verificationCode}
+        await transporter.sendMail({
+          from: `"Walk Throughz" <${emailUser}>`,
+          to: email,
+          subject: "Bitte bestätige deine E-Mail",
+          text: `Dein Bestätigungscode lautet: ${verificationCode}`,
+          html: `
+            <div style="font-family: Arial, sans-serif; background-color:#1E1E1E; color:#ffffff; padding:24px; border-radius:12px; max-width:500px; margin:auto;">
+              <h2 style="color:#00A8FF; text-align:center;">Walk Throughz</h2>
+              <p style="text-align:center; font-size:16px;">Dein Bestätigungscode lautet:</p>
+              <div style="background:#000000; color:#00A8FF; font-size:28px; letter-spacing:6px; font-weight:bold; padding:16px; text-align:center; border-radius:8px; border:1px solid #00A8FF; margin:20px 0;">
+                ${verificationCode}
+              </div>
+            </div>
+          `,
+        });
+      } catch (mailErr) {
+        console.warn(`[SMTP WARN] Email sending failed: ${(mailErr as Error).message}. (OTP printed to console: ${verificationCode})`);
+      }
+    } else {
+      console.log(`[SMTP INFO] SMTP not configured in .env. Use console OTP: ${verificationCode}`);
+    }
 
-Gib den Code einfach in der Anmeldemaske ein – und schon kann’s losgehen!
-
-Vielen Dank und herzlich willkommen!
-Dein Walk Throughz Team`,
-      html: `
-  <div style="font-family: Arial, Helvetica, sans-serif; background-color:#2c2c2c; color:#ffffff; padding:0; max-width:600px; margin:auto; border-radius:8px; overflow:hidden;">
-
-    <!-- Top bar / logo (CSS background image) -->
-    <div style="background-color:#222222; padding:20px; text-align:center;">
-      <div style="
-        background-image:url('https://res.cloudinary.com/dftvlksve/image/upload/v1756129458/Image20250819174530_hjqear.jpg');
-        background-repeat:no-repeat;
-        background-position:center;
-        background-size:contain;
-        height:110px;
-        max-width:350px;
-        margin:0 auto;
-      "></div>
-    </div>
-
-    <!-- Title below the top bar -->
-    <div style="padding:0 20px 8px; text-align:center;">
-      <h1 style="font-size:20px; line-height:28px; margin:16px 0 0; font-weight:700; color:#ffffff !important; text-align:center;">
-        Willkommen!
-      </h1>
-    </div>
-
-    <!-- Body -->
-    <div style="padding:20px; text-align:center; font-size:16px; line-height:24px;">
-      <p style="margin:0 0 16px; color:#ffffff !important;">
-        Hey, schön, dass du dabei bist!
-      </p>
-      <p style="margin:0 0 8px; color:#ffffff !important;">
-        Um deine Anmeldung abzuschließen, bestätige bitte deine E-Mail mit dem folgenden Code:
-      </p>
-
-      <!-- Verification code -->
-      <div style="background:#000000; color:#ffffff !important; font-size:24px; letter-spacing:4px; font-weight:bold; padding:15px 20px; border-radius:6px; margin:20px auto; display:inline-block;">
-        ${verificationCode}
-      </div>
-
-      <p style="margin:20px 0 0; color:#ffffff !important;">
-        Gib den Code einfach in der Anmeldemaske ein – und schon kann’s losgehen!
-      </p>
-
-      <!-- Centered sign-off -->
-       <p style="margin:24px 0 0; font-size:16px; color:#ffffff !important; text-align:center;">
-        Viele Grüße<br/>Dein <strong>Walk Throughz</strong> Team
-</p>
-    </div>
-  </div>
-  `,
-    });
-
-    // 7. Respond
+    // 6. Respond with success
     res.status(201).json({
       success: true,
       message: "Benutzer registriert. Bitte verifizieren Sie Ihre E-Mail.",
+      data: {
+        email: user.email,
+        name: user.name,
+      }
     });
   } catch (error: unknown) {
+    console.error("[REGISTER ERROR]", error);
+
+    // A bad payload is the client's problem, not a server fault — answer 400
+    // with the offending fields so the app can show something a person can act
+    // on instead of a generic 500.
+    const err = error as { name?: string; code?: number; errors?: Record<string, { message: string }> };
+
+    if (err?.name === "ValidationError" && err.errors) {
+      res.status(400).json({
+        success: false,
+        message: Object.values(err.errors).map((e) => e.message).join(" "),
+        fields: Object.keys(err.errors),
+      });
+      return;
+    }
+
+    if (err?.code === 11000) {
+      res.status(409).json({
+        success: false,
+        message: "Diese E-Mail-Adresse ist bereits registriert.",
+      });
+      return;
+    }
+
     res.status(500).json({
       success: false,
       message: "Interner Serverfehler",
@@ -551,18 +554,31 @@ export const verifyCode = async (
         .json({ success: false, message: "Benutzer bereits verifiziert" });
       return;
     }
-    if (user.verificationCode !== code) {
+
+    const inputCode = code?.toString().trim().toUpperCase();
+    const storedCode = user.verificationCode?.toString().trim().toUpperCase();
+
+    if (!inputCode || storedCode !== inputCode) {
       res
         .status(400)
         .json({ success: false, message: "Ungültiger Verifizierungscode" });
       return;
     }
+
     user.isVerified = true;
     user.verificationCode = undefined;
     await user.save();
-    res
-      .status(200)
-      .json({ success: true, message: "E-Mail erfolgreich verifiziert" });
+
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET || 'secret_key', {
+      expiresIn: "50h",
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "E-Mail erfolgreich verifiziert",
+      data: user,
+      token: token,
+    });
   } catch (error: unknown) {
     res.status(500).json({
       success: false,
