@@ -5,12 +5,14 @@ import {
   getReviewsByDeal,
   updateReview,
   deleteReview,
+  bulkDeleteReviews,
   getDashboardStats,
   getCategoryBookingStats,
   getRevenueAndBookingStats,
   getAllReviews,
 } from '../controllers/Review.controller'
 import protect from '../middlewares/auth.middleware'
+import authorizeRoles from '../middlewares/authorizeRoles'
 
 const router = express.Router()
 
@@ -25,6 +27,12 @@ router.get('/reviews/deal/:dealID', asyncHandler(getReviewsByDeal))
 // Update a review
 router.put('/reviews/:id', protect, asyncHandler(updateReview))
 // Delete a review
+router.delete(
+  '/reviews/bulk',
+  protect,
+  authorizeRoles('admin'),
+  asyncHandler(bulkDeleteReviews)
+)
 router.delete('/reviews/:id', protect, asyncHandler(deleteReview))
 
 // Get dashboard stats

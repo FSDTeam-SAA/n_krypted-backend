@@ -10,6 +10,7 @@ import {
   getUserById,
   getAllUser,
   deleteUser,
+  bulkDeleteUsers,
   resendVerification,
 } from "../controllers/Auth.controller";
 import protect from "../middlewares/auth.middleware";
@@ -45,6 +46,13 @@ router.get("/single-user/:id", getUserById);
 router.get("/all/user", protect, authorizeRoles("admin"), getAllUser);
 
 router.delete("/delete/user", protect, authorizeRoles("admin"), deleteUser);
+
+router.delete(
+  "/delete/users",
+  protect,
+  authorizeRoles("admin"),
+  bulkDeleteUsers
+);
 
 router.post("/resend-verification", resendVerification);
 export default router;

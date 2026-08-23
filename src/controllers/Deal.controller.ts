@@ -11,6 +11,7 @@ import Notification from "../models/Notification.model";
 import sharp from "sharp";
 import asyncHandler from "../utils/asyncHandler";
 import { sendMail } from "../utils/mail.helper";
+import Review from "../models/Review.model";
 
 // Types
 export type MetaPagination = {
@@ -240,29 +241,48 @@ export const getSingleDeal = async (
       return;
     }
 
-    // Calculate booking count for each schedule date
-    const bookingCounts = await Promise.all(
-      deal.scheduleDates.map(async (scheduleDate: any) => {
-        const count = await Booking.countDocuments({
-          dealsId: deal._id,
-          scheduleDate: scheduleDate.date,
-          isBooked: true,
-        });
-        return {
-          date: scheduleDate.date ? scheduleDate.date : scheduleDate,
-          count,
-          spotsLeft: scheduleDate.participationsLimit
-            ? scheduleDate.participationsLimit - count
-            : null,
-        };
-      })
-    );
+    const [bookingCounts, reviewStats, totalCheckIns] = await Promise.all([
+      Promise.all(
+        deal.scheduleDates.map(async (scheduleDate: any) => {
+          const count = await Booking.countDocuments({
+            dealsId: deal._id,
+            scheduleDate: scheduleDate.date,
+            isBooked: true,
+          });
+          return {
+            date: scheduleDate.date ? scheduleDate.date : scheduleDate,
+            count,
+            spotsLeft: scheduleDate.participationsLimit
+              ? scheduleDate.participationsLimit - count
+              : null,
+          };
+        })
+      ),
+      Review.aggregate([
+        { $match: { dealID: deal._id } },
+        {
+          $group: {
+            _id: "$dealID",
+            rating: { $avg: "$ratings" },
+            reviewCount: { $sum: 1 },
+          },
+        },
+      ]),
+      Booking.countDocuments({
+        dealsId: deal._id,
+        isBooked: true,
+        paymentStatus: "complete",
+      }),
+    ]);
 
     res.status(200).json({
       success: true,
       deal: {
         ...deal.toObject(),
         bookingCounts,
+        rating: reviewStats[0]?.rating || 0,
+        reviewCount: reviewStats[0]?.reviewCount || 0,
+        totalCheckIns,
       },
     });
   } catch (error: any) {
@@ -415,6 +435,29 @@ export const getAllDeals = async (
       })
     );
 
+    const dealIds = deals.map((deal) => deal._id);
+    const reviewStats = await Review.aggregate([
+      { $match: { dealID: { $in: dealIds } } },
+      {
+        $group: {
+          _id: "$dealID",
+          rating: { $avg: "$ratings" },
+          reviewCount: { $sum: 1 },
+        },
+      },
+    ]);
+    const reviewStatsByDeal = new Map(
+      reviewStats.map((item) => [item._id.toString(), item])
+    );
+    const dealsWithReviewStats = enrichedDeals.map((deal: any) => {
+      const stats = reviewStatsByDeal.get(deal._id.toString());
+      return {
+        ...deal,
+        rating: stats?.rating || 0,
+        reviewCount: stats?.reviewCount || 0,
+      };
+    });
+
     const totalPages = Math.ceil(totalItems / itemsPerPage);
 
     const pagination: MetaPagination = {
@@ -426,7 +469,7 @@ export const getAllDeals = async (
 
     res.status(200).json({
       success: true,
-      deals: enrichedDeals,
+      deals: dealsWithReviewStats,
       pagination,
     });
   } catch (error: any) {
@@ -457,6 +500,38 @@ export const deleteDeal = async (
     res.status(500).json({
       success: false,
       message: "Failed to delete deal",
+      error: error.message,
+    });
+  }
+};
+
+export const bulkDeleteDeals = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const ids = Array.isArray(req.body?.ids) ? [...new Set(req.body.ids)] : [];
+    if (
+      ids.length === 0 ||
+      ids.some((id) => typeof id !== "string" || !mongoose.isValidObjectId(id))
+    ) {
+      res.status(400).json({
+        success: false,
+        message: "Eine gültige Liste von Restaurant-IDs ist erforderlich",
+      });
+      return;
+    }
+
+    const result = await Deal.deleteMany({ _id: { $in: ids } });
+    res.status(200).json({
+      success: true,
+      deletedCount: result.deletedCount,
+      message: `${result.deletedCount} Restaurants wurden gelöscht`,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Restaurants konnten nicht gelöscht werden",
       error: error.message,
     });
   }

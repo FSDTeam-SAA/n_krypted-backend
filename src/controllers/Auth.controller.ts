@@ -7,6 +7,9 @@ import bcrypt from "bcrypt";
 import cloudinary from "../utils/cloudinary";
 import { getPaginationParams, buildMetaPagination } from "../utils/pagination";
 import nodemailer from "nodemailer";
+import Booking from "../models/Booking.model";
+import Review from "../models/Review.model";
+import mongoose from "mongoose";
 
 // Benutzerregistrierung
 // export const register = async (req: Request, res: Response): Promise<void> => {
@@ -775,13 +778,53 @@ export const getAllUser = async (
 ) => {
   try {
     const { page, limit, skip } = getPaginationParams(req.query);
+    const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
+    const filter = search
+      ? {
+          $or: [
+            { name: { $regex: search, $options: "i" } },
+            { email: { $regex: search, $options: "i" } },
+          ],
+        }
+      : {};
 
-    const totalUser = await User.countDocuments();
-
-    const allUser = await User.find()
-      .skip(skip)
-      .limit(limit)
-      .sort({ createdAt: -1 });
+    const [totalUser, users] = await Promise.all([
+      User.countDocuments(filter),
+      User.find(filter)
+        .select("-password -verificationCode -resetPasswordToken -resetPasswordExpires")
+        .skip(skip)
+        .limit(limit)
+        .sort({ createdAt: -1 })
+        .lean(),
+    ]);
+    const userIds = users.map((user) => user._id);
+    const [bookingCounts, reviewCounts] = await Promise.all([
+      Booking.aggregate([
+        {
+          $match: {
+            userId: { $in: userIds },
+            isBooked: true,
+            paymentStatus: "complete",
+          },
+        },
+        { $group: { _id: "$userId", count: { $sum: 1 } } },
+      ]),
+      Review.aggregate([
+        { $match: { userID: { $in: userIds } } },
+        { $group: { _id: "$userID", count: { $sum: 1 } } },
+      ]),
+    ]);
+    const bookingCountByUser = new Map(
+      bookingCounts.map((item) => [item._id.toString(), item.count])
+    );
+    const reviewCountByUser = new Map(
+      reviewCounts.map((item) => [item._id.toString(), item.count])
+    );
+    const allUser = users.map((user) => ({
+      ...user,
+      checkInCount: bookingCountByUser.get(user._id.toString()) || 0,
+      reviewCount: reviewCountByUser.get(user._id.toString()) || 0,
+    }));
 
     const meta = buildMetaPagination(totalUser, page, limit);
 
@@ -818,5 +861,39 @@ export const deleteUser = async (
     });
   } catch (error) {
     next();
+  }
+};
+
+export const bulkDeleteUsers = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const ids = Array.isArray(req.body?.ids) ? [...new Set(req.body.ids)] : [];
+    if (
+      ids.length === 0 ||
+      ids.some((id) => typeof id !== "string" || !mongoose.isValidObjectId(id))
+    ) {
+      res.status(400).json({
+        success: false,
+        message: "Eine gültige Liste von Benutzer-IDs ist erforderlich",
+      });
+      return;
+    }
+
+    const result = await User.deleteMany({
+      _id: { $in: ids, $ne: req.user?.id },
+      role: "user",
+    });
+
+    res.status(200).json({
+      success: true,
+      deletedCount: result.deletedCount,
+      skippedCount: ids.length - result.deletedCount,
+      message: `${result.deletedCount} Benutzer wurden gelöscht`,
+    });
+  } catch (error) {
+    next(error);
   }
 };

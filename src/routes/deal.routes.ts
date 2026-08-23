@@ -36,6 +36,13 @@ router.patch(
 
 // Delete a deal
 router.delete(
+  '/deals/bulk',
+  protect,
+  authorizeRoles('admin'),
+  dealController.bulkDeleteDeals
+)
+
+router.delete(
   '/deals/:id',
   protect,
   authorizeRoles('admin'),
