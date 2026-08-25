@@ -4,13 +4,13 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.io = void 0;
-const app_1 = __importDefault(require("./app"));
 const dotenv_1 = __importDefault(require("dotenv"));
+dotenv_1.default.config();
+const app_1 = __importDefault(require("./app"));
 const db_1 = require("./config/db");
 const http_1 = __importDefault(require("http"));
 const socket_1 = require("./socket/socket");
 const deactivateExpiredDeals_1 = require("./cron/deactivateExpiredDeals");
-dotenv_1.default.config();
 const server = http_1.default.createServer(app_1.default);
 // Initialize Socket.IO
 const io = (0, socket_1.initializeSocket)(server);

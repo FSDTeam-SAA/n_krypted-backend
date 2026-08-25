@@ -59,7 +59,20 @@ import mongoose from "mongoose";
 
 export const register = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { name, email, phoneNumber, password } = req.body;
+    const { name, phoneNumber, password } = req.body;
+    const email = req.body.email?.toString().trim().toLowerCase();
+    // Public registration may only create customer or restaurant-owner
+    // accounts. Admin accounts are never accepted from a client payload.
+    const requestedRole =
+      req.body.role === "restaurant_owner" ? "restaurant_owner" : "user";
+
+    if (!name?.toString().trim() || !email || !password) {
+      res.status(400).json({
+        success: false,
+        message: "Name, email and password are required",
+      });
+      return;
+    }
 
     // 1. Check if user exists
     let user = await User.findOne({ email });
@@ -72,9 +85,11 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 
     // 2. Generate verification code
     const verificationCode = crypto.randomBytes(3).toString("hex").toUpperCase();
-    console.log(`\n========================================`);
-    console.log(`[AUTH REGISTRATION] Verification OTP for ${email}: ${verificationCode}`);
-    console.log(`========================================\n`);
+    if (requestedRole === "user") {
+      console.log(`\n========================================`);
+      console.log(`[AUTH REGISTRATION] Verification OTP for ${email}: ${verificationCode}`);
+      console.log(`========================================\n`);
+    }
 
     // 3. Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -84,7 +99,10 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       user.name = name || user.name;
       user.phoneNumber = phoneNumber || user.phoneNumber;
       user.password = hashedPassword;
-      user.verificationCode = verificationCode;
+      user.verificationCode =
+        requestedRole === "user" ? verificationCode : undefined;
+      user.role = requestedRole;
+      if (requestedRole === "restaurant_owner") user.isVerified = true;
       await user.save();
     } else {
       user = new User({
@@ -92,8 +110,10 @@ export const register = async (req: Request, res: Response): Promise<void> => {
         email,
         phoneNumber,
         password: hashedPassword,
-        verificationCode,
-        isVerified: false,
+        verificationCode:
+          requestedRole === "user" ? verificationCode : undefined,
+        isVerified: requestedRole === "restaurant_owner",
+        role: requestedRole,
       });
       await user.save();
     }
@@ -102,7 +122,12 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     const emailUser = process.env.OTP_EMAIL_USER || process.env.GMAIL_SMTP_USER || process.env.EMAIL_USER;
     const emailPass = process.env.OTP_EMAIL_PASS || process.env.GMAIL_SMTP_APP_PASSWORD || process.env.EMAIL_PASS;
 
-    if (emailUser && emailPass && !emailUser.includes('your_gmail')) {
+    if (
+      requestedRole === "user" &&
+      emailUser &&
+      emailPass &&
+      !emailUser.includes('your_gmail')
+    ) {
       try {
         const transporter = nodemailer.createTransport({
           host: emailUser.includes('gmail') ? 'smtp.gmail.com' : 'smtps.udag.de',
@@ -132,17 +157,23 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       } catch (mailErr) {
         console.warn(`[SMTP WARN] Email sending failed: ${(mailErr as Error).message}. (OTP printed to console: ${verificationCode})`);
       }
-    } else {
+    } else if (requestedRole === "user") {
       console.log(`[SMTP INFO] SMTP not configured in .env. Use console OTP: ${verificationCode}`);
     }
 
     // 6. Respond with success
     res.status(201).json({
       success: true,
-      message: "Benutzer registriert. Bitte verifizieren Sie Ihre E-Mail.",
+      message:
+        requestedRole === "restaurant_owner"
+          ? "Restaurant owner registered. You can now sign in and create your restaurant."
+          : "Benutzer registriert. Bitte verifizieren Sie Ihre E-Mail.",
       data: {
+        _id: user._id,
         email: user.email,
         name: user.name,
+        role: user.role,
+        isVerified: user.isVerified,
       }
     });
   } catch (error: unknown) {
@@ -181,7 +212,16 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 // Benutzeranmeldung
 export const login = async (req: Request, res: Response) => {
   try {
-    const { email, password } = req.body;
+    const email = req.body.email?.toString().trim().toLowerCase();
+    const { password } = req.body;
+
+    if (!email || !password) {
+      res.status(400).json({
+        success: false,
+        message: "E-Mail und Passwort sind erforderlich",
+      });
+      return;
+    }
 
     const user = await User.findOne({ email });
     if (!user) {
@@ -211,7 +251,10 @@ export const login = async (req: Request, res: Response) => {
       expiresIn: "50h",
     });
 
-    res.status(200).json({ success: true, data: user, token: token });
+    const safeUser = await User.findById(user._id).select(
+      "-password -verificationCode -resetPasswordToken -resetPasswordExpires"
+    );
+    res.status(200).json({ success: true, data: safeUser, token: token });
   } catch (error: unknown) {
     res.status(500).json({
       success: false,
@@ -779,14 +822,17 @@ export const getAllUser = async (
   try {
     const { page, limit, skip } = getPaginationParams(req.query);
     const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
-    const filter = search
-      ? {
+    const filter = {
+      role: { $ne: "restaurant_owner" },
+      ...(search
+        ? {
           $or: [
             { name: { $regex: search, $options: "i" } },
             { email: { $regex: search, $options: "i" } },
           ],
         }
-      : {};
+        : {}),
+    };
 
     const [totalUser, users] = await Promise.all([
       User.countDocuments(filter),
@@ -835,6 +881,179 @@ export const getAllUser = async (
     });
   } catch (error) {
     next(error);
+  }
+};
+
+export const getRestaurantOwners = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { page, limit, skip } = getPaginationParams(req.query);
+    const search =
+      typeof req.query.search === "string" ? req.query.search.trim() : "";
+    const filter: Record<string, unknown> = { role: "restaurant_owner" };
+
+    if (search) {
+      filter.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { email: { $regex: search, $options: "i" } },
+        { phoneNumber: { $regex: search, $options: "i" } },
+      ];
+    }
+    const [totalItems, owners] = await Promise.all([
+      User.countDocuments(filter),
+      User.find(filter)
+        .select("-password -verificationCode -resetPasswordToken -resetPasswordExpires")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+    ]);
+
+    res.status(200).json({
+      success: true,
+      meta: buildMetaPagination(totalItems, page, limit),
+      data: owners,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const createRestaurantOwner = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const name = req.body.name?.toString().trim();
+    const email = req.body.email?.toString().trim().toLowerCase();
+    const password = req.body.password?.toString();
+
+    if (!name || !email || !password || password.length < 6) {
+      res.status(400).json({
+        success: false,
+        message: "Name, email and a password of at least 6 characters are required",
+      });
+      return;
+    }
+    if (await User.exists({ email })) {
+      res.status(409).json({
+        success: false,
+        message: "This email address is already registered",
+      });
+      return;
+    }
+
+    const owner = await User.create({
+      name,
+      email,
+      password: await bcrypt.hash(password, 10),
+      phoneNumber: req.body.phoneNumber?.toString().trim() || undefined,
+      country: req.body.country?.toString().trim() || undefined,
+      cityState: req.body.cityState?.toString().trim() || undefined,
+      role: "restaurant_owner",
+      isVerified: true,
+    });
+    const safeOwner = await User.findById(owner._id).select(
+      "-password -verificationCode -resetPasswordToken -resetPasswordExpires"
+    );
+
+    res.status(201).json({
+      success: true,
+      message: "Restaurant owner created successfully",
+      data: safeOwner,
+    });
+  } catch (error: unknown) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to create restaurant owner",
+      error: (error as Error).message,
+    });
+  }
+};
+
+export const updateRestaurantOwner = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) {
+      res.status(400).json({ success: false, message: "Invalid owner ID" });
+      return;
+    }
+
+    const owner = await User.findOne({ _id: id, role: "restaurant_owner" });
+    if (!owner) {
+      res.status(404).json({
+        success: false,
+        message: "Restaurant owner not found",
+      });
+      return;
+    }
+
+    if (req.body.email !== undefined) {
+      const email = req.body.email?.toString().trim().toLowerCase();
+      if (!email) {
+        res.status(400).json({ success: false, message: "Email is required" });
+        return;
+      }
+      const duplicate = await User.exists({ email, _id: { $ne: owner._id } });
+      if (duplicate) {
+        res.status(409).json({
+          success: false,
+          message: "This email address is already registered",
+        });
+        return;
+      }
+      owner.email = email;
+    }
+
+    if (req.body.name !== undefined) {
+      const name = req.body.name?.toString().trim();
+      if (!name) {
+        res.status(400).json({ success: false, message: "Name is required" });
+        return;
+      }
+      owner.name = name;
+    }
+    if (req.body.phoneNumber !== undefined) {
+      owner.phoneNumber = req.body.phoneNumber?.toString().trim() || undefined;
+    }
+    if (req.body.country !== undefined) {
+      owner.country = req.body.country?.toString().trim() || undefined;
+    }
+    if (req.body.cityState !== undefined) {
+      owner.cityState = req.body.cityState?.toString().trim() || undefined;
+    }
+    if (req.body.password) {
+      const password = req.body.password.toString();
+      if (password.length < 6) {
+        res.status(400).json({
+          success: false,
+          message: "Password must be at least 6 characters",
+        });
+        return;
+      }
+      owner.password = await bcrypt.hash(password, 10);
+    }
+    await owner.save();
+    const safeOwner = await User.findById(owner._id).select(
+      "-password -verificationCode -resetPasswordToken -resetPasswordExpires"
+    );
+    res.status(200).json({
+      success: true,
+      message: "Restaurant owner updated successfully",
+      data: safeOwner,
+    });
+  } catch (error: unknown) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to update restaurant owner",
+      error: (error as Error).message,
+    });
   }
 };
 

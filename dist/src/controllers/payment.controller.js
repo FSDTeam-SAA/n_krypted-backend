@@ -12,7 +12,7 @@ const Deal_model_1 = __importDefault(require("../models/Deal.model"));
 const paypal_service_1 = require("../services/paypal.service");
 const stripe_1 = __importDefault(require("stripe"));
 const sendBookingConfirmationEmail_1 = require("../utils/sendBookingConfirmationEmail");
-const stripe = new stripe_1.default(process.env.STRIPE_SECRET_KEY, {
+const stripe = new stripe_1.default(process.env.STRIPE_SECRET_KEY || 'sk_test_placeholder_mock_key', {
     apiVersion: '2025-06-30.basil',
 });
 // JSON validation middleware

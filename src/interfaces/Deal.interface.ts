@@ -13,6 +13,20 @@ export interface IScheduleDate {
 export interface ILocation {
   country?: string
   city?: string
+  address?: string
+  latitude?: number
+  longitude?: number
+}
+
+export interface IDish {
+  _id?: Types.ObjectId
+  name: string
+  description?: string
+  price: number
+  image?: string
+  category?: string
+  isSignatureDish?: boolean
+  isActive?: boolean
 }
 
 export interface IDeal {
@@ -24,6 +38,13 @@ export interface IDeal {
   participationsLimit?: number
   price: number
   location?: ILocation
+  owner?: Types.ObjectId
+  approvalStatus?: 'pending' | 'approved' | 'rejected'
+  rejectionReason?: string
+  submittedAt?: Date
+  approvedAt?: Date
+  approvedBy?: Types.ObjectId
+  dishes?: IDish[]
   images?: string[]
   offers?: string[]
   status?: 'activate' | 'deactivate'

@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deleteUser = exports.getAllUser = exports.getUserById = exports.updateUser = exports.changePassword = exports.resetPassword = exports.verifyCode = exports.resendVerification = exports.forgotPassword = exports.login = exports.register = void 0;
+exports.bulkDeleteUsers = exports.deleteUser = exports.updateRestaurantOwner = exports.createRestaurantOwner = exports.getRestaurantOwners = exports.getAllUser = exports.getUserById = exports.updateUser = exports.changePassword = exports.resetPassword = exports.verifyCode = exports.resendVerification = exports.forgotPassword = exports.login = exports.register = void 0;
 const User_model_1 = __importDefault(require("../models/User.model"));
 const crypto_1 = __importDefault(require("crypto"));
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
@@ -11,6 +11,9 @@ const bcrypt_1 = __importDefault(require("bcrypt"));
 const cloudinary_1 = __importDefault(require("../utils/cloudinary"));
 const pagination_1 = require("../utils/pagination");
 const nodemailer_1 = __importDefault(require("nodemailer"));
+const Booking_model_1 = __importDefault(require("../models/Booking.model"));
+const Review_model_1 = __importDefault(require("../models/Review.model"));
+const mongoose_1 = __importDefault(require("mongoose"));
 // Benutzerregistrierung
 // export const register = async (req: Request, res: Response): Promise<void> => {
 //   try {
@@ -51,108 +54,135 @@ const nodemailer_1 = __importDefault(require("nodemailer"));
 // };
 const register = async (req, res) => {
     try {
-        const { name, email, phoneNumber, password } = req.body;
+        const { name, phoneNumber, password } = req.body;
+        const email = req.body.email?.toString().trim().toLowerCase();
+        // Public registration may only create customer or restaurant-owner
+        // accounts. Admin accounts are never accepted from a client payload.
+        const requestedRole = req.body.role === "restaurant_owner" ? "restaurant_owner" : "user";
+        if (!name?.toString().trim() || !email || !password) {
+            res.status(400).json({
+                success: false,
+                message: "Name, email and password are required",
+            });
+            return;
+        }
         // 1. Check if user exists
-        const existingUser = await User_model_1.default.findOne({ email });
-        if (existingUser) {
+        let user = await User_model_1.default.findOne({ email });
+        if (user && user.isVerified) {
             res
                 .status(400)
-                .json({ success: false, message: "Benutzer existiert bereits" });
+                .json({ success: false, message: "User already exists and is verified" });
             return;
         }
         // 2. Generate verification code
-        const verificationCode = crypto_1.default.randomBytes(3).toString("hex");
+        const verificationCode = crypto_1.default.randomBytes(3).toString("hex").toUpperCase();
+        if (requestedRole === "user") {
+            console.log(`\n========================================`);
+            console.log(`[AUTH REGISTRATION] Verification OTP for ${email}: ${verificationCode}`);
+            console.log(`========================================\n`);
+        }
         // 3. Hash password
         const hashedPassword = await bcrypt_1.default.hash(password, 10);
-        // 4. Save new user
-        const newUser = new User_model_1.default({
-            name,
-            email,
-            phoneNumber,
-            password: hashedPassword,
-            verificationCode,
-        });
-        await newUser.save();
-        // 5. Setup SMTP transporter for united-domains.de
-        const transporter = nodemailer_1.default.createTransport({
-            host: "smtps.udag.de", // united-domains SMTP server
-            port: 465,
-            secure: true, // SSL
-            auth: {
-                user: process.env.OTP_EMAIL_USER, // full email address
-                pass: process.env.OTP_EMAIL_PASS, // mailbox password
-            },
-        });
-        // 6. Send email
-        await transporter.sendMail({
-            from: `"Walk Throughz" <${process.env.OTP_EMAIL_USER}>`,
-            to: email,
-            subject: "Bitte bestätige deine E-Mail",
-            text: `Hey, schön, dass du dabei bist! 
-Um deine Anmeldung abzuschließen, bestätige bitte deine E-Mail mit dem folgenden Code:
-
-Dein Bestätigungscode lautet: ${verificationCode}
-
-Gib den Code einfach in der Anmeldemaske ein – und schon kann’s losgehen!
-
-Vielen Dank und herzlich willkommen!
-Dein Walk Throughz Team`,
-            html: `
-  <div style="font-family: Arial, Helvetica, sans-serif; background-color:#2c2c2c; color:#ffffff; padding:0; max-width:600px; margin:auto; border-radius:8px; overflow:hidden;">
-
-    <!-- Top bar / logo (CSS background image) -->
-    <div style="background-color:#222222; padding:20px; text-align:center;">
-      <div style="
-        background-image:url('https://res.cloudinary.com/dftvlksve/image/upload/v1756129458/Image20250819174530_hjqear.jpg');
-        background-repeat:no-repeat;
-        background-position:center;
-        background-size:contain;
-        height:110px;
-        max-width:350px;
-        margin:0 auto;
-      "></div>
-    </div>
-
-    <!-- Title below the top bar -->
-    <div style="padding:0 20px 8px; text-align:center;">
-      <h1 style="font-size:20px; line-height:28px; margin:16px 0 0; font-weight:700; color:#ffffff !important; text-align:center;">
-        Willkommen!
-      </h1>
-    </div>
-
-    <!-- Body -->
-    <div style="padding:20px; text-align:center; font-size:16px; line-height:24px;">
-      <p style="margin:0 0 16px; color:#ffffff !important;">
-        Hey, schön, dass du dabei bist!
-      </p>
-      <p style="margin:0 0 8px; color:#ffffff !important;">
-        Um deine Anmeldung abzuschließen, bestätige bitte deine E-Mail mit dem folgenden Code:
-      </p>
-
-      <!-- Verification code -->
-      <div style="background:#000000; color:#ffffff !important; font-size:24px; letter-spacing:4px; font-weight:bold; padding:15px 20px; border-radius:6px; margin:20px auto; display:inline-block;">
-        ${verificationCode}
-      </div>
-
-      <p style="margin:20px 0 0; color:#ffffff !important;">
-        Gib den Code einfach in der Anmeldemaske ein – und schon kann’s losgehen!
-      </p>
-
-      <!-- Centered sign-off -->
-       <p style="margin:24px 0 0; font-size:16px; color:#ffffff !important; text-align:center;">
-        Viele Grüße<br/>Dein <strong>Walk Throughz</strong> Team
-</p>
-    </div>
-  </div>
-  `,
-        });
-        // 7. Respond
+        // 4. Save new user or update unverified user
+        if (user) {
+            user.name = name || user.name;
+            user.phoneNumber = phoneNumber || user.phoneNumber;
+            user.password = hashedPassword;
+            user.verificationCode =
+                requestedRole === "user" ? verificationCode : undefined;
+            user.role = requestedRole;
+            if (requestedRole === "restaurant_owner")
+                user.isVerified = true;
+            await user.save();
+        }
+        else {
+            user = new User_model_1.default({
+                name,
+                email,
+                phoneNumber,
+                password: hashedPassword,
+                verificationCode: requestedRole === "user" ? verificationCode : undefined,
+                isVerified: requestedRole === "restaurant_owner",
+                role: requestedRole,
+            });
+            await user.save();
+        }
+        // 5. Try to send email via SMTP if configured
+        const emailUser = process.env.OTP_EMAIL_USER || process.env.GMAIL_SMTP_USER || process.env.EMAIL_USER;
+        const emailPass = process.env.OTP_EMAIL_PASS || process.env.GMAIL_SMTP_APP_PASSWORD || process.env.EMAIL_PASS;
+        if (requestedRole === "user" &&
+            emailUser &&
+            emailPass &&
+            !emailUser.includes('your_gmail')) {
+            try {
+                const transporter = nodemailer_1.default.createTransport({
+                    host: emailUser.includes('gmail') ? 'smtp.gmail.com' : 'smtps.udag.de',
+                    port: 465,
+                    secure: true,
+                    auth: {
+                        user: emailUser,
+                        pass: emailPass,
+                    },
+                });
+                await transporter.sendMail({
+                    from: `"Walk Throughz" <${emailUser}>`,
+                    to: email,
+                    subject: "Bitte bestätige deine E-Mail",
+                    text: `Dein Bestätigungscode lautet: ${verificationCode}`,
+                    html: `
+            <div style="font-family: Arial, sans-serif; background-color:#1E1E1E; color:#ffffff; padding:24px; border-radius:12px; max-width:500px; margin:auto;">
+              <h2 style="color:#00A8FF; text-align:center;">Walk Throughz</h2>
+              <p style="text-align:center; font-size:16px;">Dein Bestätigungscode lautet:</p>
+              <div style="background:#000000; color:#00A8FF; font-size:28px; letter-spacing:6px; font-weight:bold; padding:16px; text-align:center; border-radius:8px; border:1px solid #00A8FF; margin:20px 0;">
+                ${verificationCode}
+              </div>
+            </div>
+          `,
+                });
+            }
+            catch (mailErr) {
+                console.warn(`[SMTP WARN] Email sending failed: ${mailErr.message}. (OTP printed to console: ${verificationCode})`);
+            }
+        }
+        else if (requestedRole === "user") {
+            console.log(`[SMTP INFO] SMTP not configured in .env. Use console OTP: ${verificationCode}`);
+        }
+        // 6. Respond with success
         res.status(201).json({
             success: true,
-            message: "Benutzer registriert. Bitte verifizieren Sie Ihre E-Mail.",
+            message: requestedRole === "restaurant_owner"
+                ? "Restaurant owner registered. You can now sign in and create your restaurant."
+                : "Benutzer registriert. Bitte verifizieren Sie Ihre E-Mail.",
+            data: {
+                _id: user._id,
+                email: user.email,
+                name: user.name,
+                role: user.role,
+                isVerified: user.isVerified,
+            }
         });
     }
     catch (error) {
+        console.error("[REGISTER ERROR]", error);
+        // A bad payload is the client's problem, not a server fault — answer 400
+        // with the offending fields so the app can show something a person can act
+        // on instead of a generic 500.
+        const err = error;
+        if (err?.name === "ValidationError" && err.errors) {
+            res.status(400).json({
+                success: false,
+                message: Object.values(err.errors).map((e) => e.message).join(" "),
+                fields: Object.keys(err.errors),
+            });
+            return;
+        }
+        if (err?.code === 11000) {
+            res.status(409).json({
+                success: false,
+                message: "Diese E-Mail-Adresse ist bereits registriert.",
+            });
+            return;
+        }
         res.status(500).json({
             success: false,
             message: "Interner Serverfehler",
@@ -164,7 +194,15 @@ exports.register = register;
 // Benutzeranmeldung
 const login = async (req, res) => {
     try {
-        const { email, password } = req.body;
+        const email = req.body.email?.toString().trim().toLowerCase();
+        const { password } = req.body;
+        if (!email || !password) {
+            res.status(400).json({
+                success: false,
+                message: "E-Mail und Passwort sind erforderlich",
+            });
+            return;
+        }
         const user = await User_model_1.default.findOne({ email });
         if (!user) {
             res
@@ -189,7 +227,8 @@ const login = async (req, res) => {
         const token = jsonwebtoken_1.default.sign({ id: user._id }, process.env.JWT_SECRET, {
             expiresIn: "50h",
         });
-        res.status(200).json({ success: true, data: user, token: token });
+        const safeUser = await User_model_1.default.findById(user._id).select("-password -verificationCode -resetPasswordToken -resetPasswordExpires");
+        res.status(200).json({ success: true, data: safeUser, token: token });
     }
     catch (error) {
         res.status(500).json({
@@ -500,7 +539,9 @@ const verifyCode = async (req, res) => {
                 .json({ success: false, message: "Benutzer bereits verifiziert" });
             return;
         }
-        if (user.verificationCode !== code) {
+        const inputCode = code?.toString().trim().toUpperCase();
+        const storedCode = user.verificationCode?.toString().trim().toUpperCase();
+        if (!inputCode || storedCode !== inputCode) {
             res
                 .status(400)
                 .json({ success: false, message: "Ungültiger Verifizierungscode" });
@@ -509,9 +550,15 @@ const verifyCode = async (req, res) => {
         user.isVerified = true;
         user.verificationCode = undefined;
         await user.save();
-        res
-            .status(200)
-            .json({ success: true, message: "E-Mail erfolgreich verifiziert" });
+        const token = jsonwebtoken_1.default.sign({ id: user._id }, process.env.JWT_SECRET || 'secret_key', {
+            expiresIn: "50h",
+        });
+        res.status(200).json({
+            success: true,
+            message: "E-Mail erfolgreich verifiziert",
+            data: user,
+            token: token,
+        });
     }
     catch (error) {
         res.status(500).json({
@@ -687,11 +734,51 @@ exports.getUserById = getUserById;
 const getAllUser = async (req, res, next) => {
     try {
         const { page, limit, skip } = (0, pagination_1.getPaginationParams)(req.query);
-        const totalUser = await User_model_1.default.countDocuments();
-        const allUser = await User_model_1.default.find()
-            .skip(skip)
-            .limit(limit)
-            .sort({ createdAt: -1 });
+        const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
+        const filter = {
+            role: { $ne: "restaurant_owner" },
+            ...(search
+                ? {
+                    $or: [
+                        { name: { $regex: search, $options: "i" } },
+                        { email: { $regex: search, $options: "i" } },
+                    ],
+                }
+                : {}),
+        };
+        const [totalUser, users] = await Promise.all([
+            User_model_1.default.countDocuments(filter),
+            User_model_1.default.find(filter)
+                .select("-password -verificationCode -resetPasswordToken -resetPasswordExpires")
+                .skip(skip)
+                .limit(limit)
+                .sort({ createdAt: -1 })
+                .lean(),
+        ]);
+        const userIds = users.map((user) => user._id);
+        const [bookingCounts, reviewCounts] = await Promise.all([
+            Booking_model_1.default.aggregate([
+                {
+                    $match: {
+                        userId: { $in: userIds },
+                        isBooked: true,
+                        paymentStatus: "complete",
+                    },
+                },
+                { $group: { _id: "$userId", count: { $sum: 1 } } },
+            ]),
+            Review_model_1.default.aggregate([
+                { $match: { userID: { $in: userIds } } },
+                { $group: { _id: "$userID", count: { $sum: 1 } } },
+            ]),
+        ]);
+        const bookingCountByUser = new Map(bookingCounts.map((item) => [item._id.toString(), item.count]));
+        const reviewCountByUser = new Map(reviewCounts.map((item) => [item._id.toString(), item.count]));
+        const allUser = users.map((user) => ({
+            ...user,
+            checkInCount: bookingCountByUser.get(user._id.toString()) || 0,
+            reviewCount: reviewCountByUser.get(user._id.toString()) || 0,
+        }));
         const meta = (0, pagination_1.buildMetaPagination)(totalUser, page, limit);
         res.status(200).json({
             success: true,
@@ -704,6 +791,159 @@ const getAllUser = async (req, res, next) => {
     }
 };
 exports.getAllUser = getAllUser;
+const getRestaurantOwners = async (req, res, next) => {
+    try {
+        const { page, limit, skip } = (0, pagination_1.getPaginationParams)(req.query);
+        const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
+        const filter = { role: "restaurant_owner" };
+        if (search) {
+            filter.$or = [
+                { name: { $regex: search, $options: "i" } },
+                { email: { $regex: search, $options: "i" } },
+                { phoneNumber: { $regex: search, $options: "i" } },
+            ];
+        }
+        const [totalItems, owners] = await Promise.all([
+            User_model_1.default.countDocuments(filter),
+            User_model_1.default.find(filter)
+                .select("-password -verificationCode -resetPasswordToken -resetPasswordExpires")
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit)
+                .lean(),
+        ]);
+        res.status(200).json({
+            success: true,
+            meta: (0, pagination_1.buildMetaPagination)(totalItems, page, limit),
+            data: owners,
+        });
+    }
+    catch (error) {
+        next(error);
+    }
+};
+exports.getRestaurantOwners = getRestaurantOwners;
+const createRestaurantOwner = async (req, res) => {
+    try {
+        const name = req.body.name?.toString().trim();
+        const email = req.body.email?.toString().trim().toLowerCase();
+        const password = req.body.password?.toString();
+        if (!name || !email || !password || password.length < 6) {
+            res.status(400).json({
+                success: false,
+                message: "Name, email and a password of at least 6 characters are required",
+            });
+            return;
+        }
+        if (await User_model_1.default.exists({ email })) {
+            res.status(409).json({
+                success: false,
+                message: "This email address is already registered",
+            });
+            return;
+        }
+        const owner = await User_model_1.default.create({
+            name,
+            email,
+            password: await bcrypt_1.default.hash(password, 10),
+            phoneNumber: req.body.phoneNumber?.toString().trim() || undefined,
+            country: req.body.country?.toString().trim() || undefined,
+            cityState: req.body.cityState?.toString().trim() || undefined,
+            role: "restaurant_owner",
+            isVerified: true,
+        });
+        const safeOwner = await User_model_1.default.findById(owner._id).select("-password -verificationCode -resetPasswordToken -resetPasswordExpires");
+        res.status(201).json({
+            success: true,
+            message: "Restaurant owner created successfully",
+            data: safeOwner,
+        });
+    }
+    catch (error) {
+        res.status(500).json({
+            success: false,
+            message: "Failed to create restaurant owner",
+            error: error.message,
+        });
+    }
+};
+exports.createRestaurantOwner = createRestaurantOwner;
+const updateRestaurantOwner = async (req, res) => {
+    try {
+        const { id } = req.params;
+        if (!mongoose_1.default.isValidObjectId(id)) {
+            res.status(400).json({ success: false, message: "Invalid owner ID" });
+            return;
+        }
+        const owner = await User_model_1.default.findOne({ _id: id, role: "restaurant_owner" });
+        if (!owner) {
+            res.status(404).json({
+                success: false,
+                message: "Restaurant owner not found",
+            });
+            return;
+        }
+        if (req.body.email !== undefined) {
+            const email = req.body.email?.toString().trim().toLowerCase();
+            if (!email) {
+                res.status(400).json({ success: false, message: "Email is required" });
+                return;
+            }
+            const duplicate = await User_model_1.default.exists({ email, _id: { $ne: owner._id } });
+            if (duplicate) {
+                res.status(409).json({
+                    success: false,
+                    message: "This email address is already registered",
+                });
+                return;
+            }
+            owner.email = email;
+        }
+        if (req.body.name !== undefined) {
+            const name = req.body.name?.toString().trim();
+            if (!name) {
+                res.status(400).json({ success: false, message: "Name is required" });
+                return;
+            }
+            owner.name = name;
+        }
+        if (req.body.phoneNumber !== undefined) {
+            owner.phoneNumber = req.body.phoneNumber?.toString().trim() || undefined;
+        }
+        if (req.body.country !== undefined) {
+            owner.country = req.body.country?.toString().trim() || undefined;
+        }
+        if (req.body.cityState !== undefined) {
+            owner.cityState = req.body.cityState?.toString().trim() || undefined;
+        }
+        if (req.body.password) {
+            const password = req.body.password.toString();
+            if (password.length < 6) {
+                res.status(400).json({
+                    success: false,
+                    message: "Password must be at least 6 characters",
+                });
+                return;
+            }
+            owner.password = await bcrypt_1.default.hash(password, 10);
+        }
+        await owner.save();
+        const safeOwner = await User_model_1.default.findById(owner._id).select("-password -verificationCode -resetPasswordToken -resetPasswordExpires");
+        res.status(200).json({
+            success: true,
+            message: "Restaurant owner updated successfully",
+            data: safeOwner,
+        });
+    }
+    catch (error) {
+        res.status(500).json({
+            success: false,
+            message: "Failed to update restaurant owner",
+            error: error.message,
+        });
+    }
+};
+exports.updateRestaurantOwner = updateRestaurantOwner;
 // Benutzer löschen
 const deleteUser = async (req, res, next) => {
     try {
@@ -726,3 +966,30 @@ const deleteUser = async (req, res, next) => {
     }
 };
 exports.deleteUser = deleteUser;
+const bulkDeleteUsers = async (req, res, next) => {
+    try {
+        const ids = Array.isArray(req.body?.ids) ? [...new Set(req.body.ids)] : [];
+        if (ids.length === 0 ||
+            ids.some((id) => typeof id !== "string" || !mongoose_1.default.isValidObjectId(id))) {
+            res.status(400).json({
+                success: false,
+                message: "Eine gültige Liste von Benutzer-IDs ist erforderlich",
+            });
+            return;
+        }
+        const result = await User_model_1.default.deleteMany({
+            _id: { $in: ids, $ne: req.user?.id },
+            role: "user",
+        });
+        res.status(200).json({
+            success: true,
+            deletedCount: result.deletedCount,
+            skippedCount: ids.length - result.deletedCount,
+            message: `${result.deletedCount} Benutzer wurden gelöscht`,
+        });
+    }
+    catch (error) {
+        next(error);
+    }
+};
+exports.bulkDeleteUsers = bulkDeleteUsers;

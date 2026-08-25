@@ -234,7 +234,13 @@ export const getSingleDeal = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    const deal = await Deal.findById(id).populate("category");
+    const deal = await Deal.findOne({
+      _id: id,
+      $or: [
+        { approvalStatus: "approved" },
+        { approvalStatus: { $exists: false } },
+      ],
+    }).populate("category");
 
     if (!deal) {
       res.status(404).json({ success: false, message: "Deal not found" });
@@ -308,22 +314,30 @@ export const getAllDeals = async (
       maxPrice,
       country,
       city,
+      location,
       title,
       page = "1",
       limit = "10",
       status,
       showAll = "false",
+      latitude,
+      longitude,
+      radiusKm = "25",
     } = req.query as {
       categoryName?: string;
       minPrice?: string;
       maxPrice?: string;
       country?: string;
       city?: string;
+      location?: string;
       title?: string;
       page?: string;
       limit?: string;
       status?: string;
       showAll?: string;
+      latitude?: string;
+      longitude?: string;
+      radiusKm?: string;
     };
 
     const pageNumber = parseInt(page, 10);
@@ -332,12 +346,13 @@ export const getAllDeals = async (
 
     const filter: any = {};
 
-    // Only apply status and schedule date filters if not showing all
-    if (showAll !== "true") {
-      filter.status = status || "activate";
-      filter["scheduleDates.active"] = true;
-      filter["scheduleDates.date"] = { $gte: new Date() };
-    }
+    // Public restaurant discovery never exposes pending/rejected or disabled
+    // restaurants. Management uses the protected /manage/deals endpoints.
+    filter.status = "activate";
+    filter.$or = [
+      { approvalStatus: "approved" },
+      { approvalStatus: { $exists: false } },
+    ];
 
     // Filter by title
     if (title && title.length >= 2) {
@@ -367,22 +382,62 @@ export const getAllDeals = async (
       filter.category = { $in: matchingCategories.map((c) => c._id) };
     }
 
-    // Filter by specific status if provided
-    if (status) {
-      filter.status = status;
-    }
-
     console.log(filter);
 
-    const totalItems = await Deal.countDocuments(filter);
+    const parsedLatitude = latitude === undefined ? undefined : Number(latitude);
+    const parsedLongitude = longitude === undefined ? undefined : Number(longitude);
+    const parsedRadius = Math.max(Number(radiusKm) || 25, 0.1);
+    const useDistance =
+      Number.isFinite(parsedLatitude) && Number.isFinite(parsedLongitude);
+    let totalItems: number;
+    let deals: any[];
 
-    console.log("Total items found:", totalItems);
-
-    const deals = await Deal.find(filter)
-      .populate("category")
-      .skip(skip)
-      .limit(itemsPerPage)
-      .sort({ createdAt: -1 });
+    if (useDistance) {
+      const allDeals = await Deal.find(filter).populate("category").sort({ createdAt: -1 });
+      const toRadians = (degrees: number) => (degrees * Math.PI) / 180;
+      const withDistance = allDeals
+        .map((deal: any) => {
+          const lat = deal.location?.latitude;
+          const lng = deal.location?.longitude;
+          if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+          const dLat = toRadians(lat - (parsedLatitude as number));
+          const dLng = toRadians(lng - (parsedLongitude as number));
+          const a =
+            Math.sin(dLat / 2) ** 2 +
+            Math.cos(toRadians(parsedLatitude as number)) *
+              Math.cos(toRadians(lat)) *
+              Math.sin(dLng / 2) ** 2;
+          const distanceKm = 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+          return distanceKm <= parsedRadius ? { deal, distanceKm } : null;
+        })
+        .filter(Boolean)
+        .sort((a: any, b: any) => a.distanceKm - b.distanceKm);
+      totalItems = withDistance.length;
+      deals = withDistance
+        .slice(skip, skip + itemsPerPage)
+        .map((item: any) => {
+          item.deal.set("distanceKm", item.distanceKm, { strict: false });
+          return item.deal;
+        });
+    } else {
+      totalItems = await Deal.countDocuments(filter);
+      deals = await Deal.find(filter)
+        .populate("category")
+        .skip(skip)
+        .limit(itemsPerPage)
+        .sort({ createdAt: -1 });
+    }
+    if (location) {
+      filter.$and = [
+        {
+          $or: [
+            { "location.city": { $regex: location, $options: "i" } },
+            { "location.country": { $regex: location, $options: "i" } },
+            { "location.address": { $regex: location, $options: "i" } },
+          ],
+        },
+      ];
+    }
 
     // Enrich deals with booking information
     const enrichedDeals = await Promise.all(
@@ -1116,7 +1171,14 @@ export const togglePopularDeals = asyncHandler(
 // Get all popular deals
 export const getPopularDeals = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
-    const popularDeals = await Deal.find({ popularDeals: true })
+    const popularDeals = await Deal.find({
+      popularDeals: true,
+      status: "activate",
+      $or: [
+        { approvalStatus: "approved" },
+        { approvalStatus: { $exists: false } },
+      ],
+    })
       .populate("category")
       .sort({ createdAt: -1 }); // optional: latest first
 

@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getPopularDeals = exports.togglePopularDeals = exports.toggleTimer = exports.getDealScheduleDates = exports.changeDealStatus = exports.updateDeal = exports.deleteDeal = exports.getAllDeals = exports.getSingleDeal = exports.createDeal = void 0;
+exports.getPopularDeals = exports.togglePopularDeals = exports.toggleTimer = exports.getDealScheduleDates = exports.changeDealStatus = exports.updateDeal = exports.bulkDeleteDeals = exports.deleteDeal = exports.getAllDeals = exports.getSingleDeal = exports.createDeal = void 0;
 const Deal_model_1 = __importDefault(require("../models/Deal.model"));
 const cloudinary_1 = __importDefault(require("../utils/cloudinary"));
 const mongoose_1 = __importDefault(require("mongoose"));
@@ -15,6 +15,7 @@ const Notification_model_1 = __importDefault(require("../models/Notification.mod
 const sharp_1 = __importDefault(require("sharp"));
 const asyncHandler_1 = __importDefault(require("../utils/asyncHandler"));
 const mail_helper_1 = require("../utils/mail.helper");
+const Review_model_1 = __importDefault(require("../models/Review.model"));
 /*********************
  * CREATE A NEW DEAL *
  *********************/
@@ -174,31 +175,56 @@ exports.createDeal = createDeal;
 const getSingleDeal = async (req, res) => {
     try {
         const { id } = req.params;
-        const deal = await Deal_model_1.default.findById(id).populate("category");
+        const deal = await Deal_model_1.default.findOne({
+            _id: id,
+            $or: [
+                { approvalStatus: "approved" },
+                { approvalStatus: { $exists: false } },
+            ],
+        }).populate("category");
         if (!deal) {
             res.status(404).json({ success: false, message: "Deal not found" });
             return;
         }
-        // Calculate booking count for each schedule date
-        const bookingCounts = await Promise.all(deal.scheduleDates.map(async (scheduleDate) => {
-            const count = await Booking_model_1.default.countDocuments({
+        const [bookingCounts, reviewStats, totalCheckIns] = await Promise.all([
+            Promise.all(deal.scheduleDates.map(async (scheduleDate) => {
+                const count = await Booking_model_1.default.countDocuments({
+                    dealsId: deal._id,
+                    scheduleDate: scheduleDate.date,
+                    isBooked: true,
+                });
+                return {
+                    date: scheduleDate.date ? scheduleDate.date : scheduleDate,
+                    count,
+                    spotsLeft: scheduleDate.participationsLimit
+                        ? scheduleDate.participationsLimit - count
+                        : null,
+                };
+            })),
+            Review_model_1.default.aggregate([
+                { $match: { dealID: deal._id } },
+                {
+                    $group: {
+                        _id: "$dealID",
+                        rating: { $avg: "$ratings" },
+                        reviewCount: { $sum: 1 },
+                    },
+                },
+            ]),
+            Booking_model_1.default.countDocuments({
                 dealsId: deal._id,
-                scheduleDate: scheduleDate.date,
                 isBooked: true,
-            });
-            return {
-                date: scheduleDate.date ? scheduleDate.date : scheduleDate,
-                count,
-                spotsLeft: scheduleDate.participationsLimit
-                    ? scheduleDate.participationsLimit - count
-                    : null,
-            };
-        }));
+                paymentStatus: "complete",
+            }),
+        ]);
         res.status(200).json({
             success: true,
             deal: {
                 ...deal.toObject(),
                 bookingCounts,
+                rating: reviewStats[0]?.rating || 0,
+                reviewCount: reviewStats[0]?.reviewCount || 0,
+                totalCheckIns,
             },
         });
     }
@@ -216,17 +242,18 @@ exports.getSingleDeal = getSingleDeal;
  **************************************************/
 const getAllDeals = async (req, res) => {
     try {
-        const { categoryName, minPrice, maxPrice, country, city, title, page = "1", limit = "10", status, showAll = "false", } = req.query;
+        const { categoryName, minPrice, maxPrice, country, city, location, title, page = "1", limit = "10", status, showAll = "false", latitude, longitude, radiusKm = "25", } = req.query;
         const pageNumber = parseInt(page, 10);
         const itemsPerPage = parseInt(limit, 10);
         const skip = (pageNumber - 1) * itemsPerPage;
         const filter = {};
-        // Only apply status and schedule date filters if not showing all
-        if (showAll !== "true") {
-            filter.status = status || "activate";
-            filter["scheduleDates.active"] = true;
-            filter["scheduleDates.date"] = { $gte: new Date() };
-        }
+        // Public restaurant discovery never exposes pending/rejected or disabled
+        // restaurants. Management uses the protected /manage/deals endpoints.
+        filter.status = "activate";
+        filter.$or = [
+            { approvalStatus: "approved" },
+            { approvalStatus: { $exists: false } },
+        ];
         // Filter by title
         if (title && title.length >= 2) {
             filter.title = { $regex: title, $options: "i" };
@@ -253,18 +280,60 @@ const getAllDeals = async (req, res) => {
             });
             filter.category = { $in: matchingCategories.map((c) => c._id) };
         }
-        // Filter by specific status if provided
-        if (status) {
-            filter.status = status;
-        }
         console.log(filter);
-        const totalItems = await Deal_model_1.default.countDocuments(filter);
-        console.log("Total items found:", totalItems);
-        const deals = await Deal_model_1.default.find(filter)
-            .populate("category")
-            .skip(skip)
-            .limit(itemsPerPage)
-            .sort({ createdAt: -1 });
+        const parsedLatitude = latitude === undefined ? undefined : Number(latitude);
+        const parsedLongitude = longitude === undefined ? undefined : Number(longitude);
+        const parsedRadius = Math.max(Number(radiusKm) || 25, 0.1);
+        const useDistance = Number.isFinite(parsedLatitude) && Number.isFinite(parsedLongitude);
+        let totalItems;
+        let deals;
+        if (useDistance) {
+            const allDeals = await Deal_model_1.default.find(filter).populate("category").sort({ createdAt: -1 });
+            const toRadians = (degrees) => (degrees * Math.PI) / 180;
+            const withDistance = allDeals
+                .map((deal) => {
+                const lat = deal.location?.latitude;
+                const lng = deal.location?.longitude;
+                if (!Number.isFinite(lat) || !Number.isFinite(lng))
+                    return null;
+                const dLat = toRadians(lat - parsedLatitude);
+                const dLng = toRadians(lng - parsedLongitude);
+                const a = Math.sin(dLat / 2) ** 2 +
+                    Math.cos(toRadians(parsedLatitude)) *
+                        Math.cos(toRadians(lat)) *
+                        Math.sin(dLng / 2) ** 2;
+                const distanceKm = 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                return distanceKm <= parsedRadius ? { deal, distanceKm } : null;
+            })
+                .filter(Boolean)
+                .sort((a, b) => a.distanceKm - b.distanceKm);
+            totalItems = withDistance.length;
+            deals = withDistance
+                .slice(skip, skip + itemsPerPage)
+                .map((item) => {
+                item.deal.set("distanceKm", item.distanceKm, { strict: false });
+                return item.deal;
+            });
+        }
+        else {
+            totalItems = await Deal_model_1.default.countDocuments(filter);
+            deals = await Deal_model_1.default.find(filter)
+                .populate("category")
+                .skip(skip)
+                .limit(itemsPerPage)
+                .sort({ createdAt: -1 });
+        }
+        if (location) {
+            filter.$and = [
+                {
+                    $or: [
+                        { "location.city": { $regex: location, $options: "i" } },
+                        { "location.country": { $regex: location, $options: "i" } },
+                        { "location.address": { $regex: location, $options: "i" } },
+                    ],
+                },
+            ];
+        }
         // Enrich deals with booking information
         const enrichedDeals = await Promise.all(deals.map(async (deal) => {
             let availableDates = [];
@@ -302,6 +371,26 @@ const getAllDeals = async (req, res) => {
                 availableDates,
             };
         }));
+        const dealIds = deals.map((deal) => deal._id);
+        const reviewStats = await Review_model_1.default.aggregate([
+            { $match: { dealID: { $in: dealIds } } },
+            {
+                $group: {
+                    _id: "$dealID",
+                    rating: { $avg: "$ratings" },
+                    reviewCount: { $sum: 1 },
+                },
+            },
+        ]);
+        const reviewStatsByDeal = new Map(reviewStats.map((item) => [item._id.toString(), item]));
+        const dealsWithReviewStats = enrichedDeals.map((deal) => {
+            const stats = reviewStatsByDeal.get(deal._id.toString());
+            return {
+                ...deal,
+                rating: stats?.rating || 0,
+                reviewCount: stats?.reviewCount || 0,
+            };
+        });
         const totalPages = Math.ceil(totalItems / itemsPerPage);
         const pagination = {
             currentPage: pageNumber,
@@ -311,7 +400,7 @@ const getAllDeals = async (req, res) => {
         };
         res.status(200).json({
             success: true,
-            deals: enrichedDeals,
+            deals: dealsWithReviewStats,
             pagination,
         });
     }
@@ -346,6 +435,33 @@ const deleteDeal = async (req, res) => {
     }
 };
 exports.deleteDeal = deleteDeal;
+const bulkDeleteDeals = async (req, res) => {
+    try {
+        const ids = Array.isArray(req.body?.ids) ? [...new Set(req.body.ids)] : [];
+        if (ids.length === 0 ||
+            ids.some((id) => typeof id !== "string" || !mongoose_1.default.isValidObjectId(id))) {
+            res.status(400).json({
+                success: false,
+                message: "Eine gültige Liste von Restaurant-IDs ist erforderlich",
+            });
+            return;
+        }
+        const result = await Deal_model_1.default.deleteMany({ _id: { $in: ids } });
+        res.status(200).json({
+            success: true,
+            deletedCount: result.deletedCount,
+            message: `${result.deletedCount} Restaurants wurden gelöscht`,
+        });
+    }
+    catch (error) {
+        res.status(500).json({
+            success: false,
+            message: "Restaurants konnten nicht gelöscht werden",
+            error: error.message,
+        });
+    }
+};
+exports.bulkDeleteDeals = bulkDeleteDeals;
 /*****************
  * UPDATE A DEAL *
  *****************/
@@ -807,7 +923,14 @@ exports.togglePopularDeals = (0, asyncHandler_1.default)(async (req, res) => {
 });
 // Get all popular deals
 exports.getPopularDeals = (0, asyncHandler_1.default)(async (req, res) => {
-    const popularDeals = await Deal_model_1.default.find({ popularDeals: true })
+    const popularDeals = await Deal_model_1.default.find({
+        popularDeals: true,
+        status: "activate",
+        $or: [
+            { approvalStatus: "approved" },
+            { approvalStatus: { $exists: false } },
+        ],
+    })
         .populate("category")
         .sort({ createdAt: -1 }); // optional: latest first
     res.status(200).json({

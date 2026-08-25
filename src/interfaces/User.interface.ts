@@ -1,3 +1,5 @@
+export type UserRole = 'admin' | 'user' | 'restaurant_owner'
+
 export interface IUser {
   name: string
   email: string
@@ -7,8 +9,8 @@ export interface IUser {
   isVerified?: boolean
   resetPasswordToken?: string
   resetPasswordExpires?: Date
-  country?: String
-  cityState?: String
-  role: String
-  avatar: String
+  country?: string
+  cityState?: string
+  role: UserRole
+  avatar?: string
 }

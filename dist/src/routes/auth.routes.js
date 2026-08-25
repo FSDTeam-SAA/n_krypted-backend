@@ -26,6 +26,10 @@ router.put("/update-profile", multer_middleware_1.default.single("avatar"), Auth
 // get a single user by id
 router.get("/single-user/:id", Auth_controller_1.getUserById);
 router.get("/all/user", auth_middleware_1.default, (0, authorizeRoles_1.default)("admin"), Auth_controller_1.getAllUser);
+router.get("/restaurant-owners", auth_middleware_1.default, (0, authorizeRoles_1.default)("admin"), Auth_controller_1.getRestaurantOwners);
+router.post("/restaurant-owners", auth_middleware_1.default, (0, authorizeRoles_1.default)("admin"), Auth_controller_1.createRestaurantOwner);
+router.put("/restaurant-owners/:id", auth_middleware_1.default, (0, authorizeRoles_1.default)("admin"), Auth_controller_1.updateRestaurantOwner);
 router.delete("/delete/user", auth_middleware_1.default, (0, authorizeRoles_1.default)("admin"), Auth_controller_1.deleteUser);
+router.delete("/delete/users", auth_middleware_1.default, (0, authorizeRoles_1.default)("admin"), Auth_controller_1.bulkDeleteUsers);
 router.post("/resend-verification", Auth_controller_1.resendVerification);
 exports.default = router;

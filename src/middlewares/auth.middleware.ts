@@ -1,19 +1,20 @@
 import jwt from 'jsonwebtoken'
 import { Request, Response, NextFunction } from 'express'
 import User from '../models/User.model' 
+import { UserRole } from '../interfaces/User.interface'
 
 
 declare module 'express' {
   export interface Request {
     user?: {
       id: string
-      role: 'admin' | 'user'
+      role: UserRole
     }
   }
 }
 
 const protect = async (
-  req: Request & { user?: { id: string; role: 'admin' | 'user' } },
+  req: Request & { user?: { id: string; role: UserRole } },
   res: Response,
   next: NextFunction
 ) => {
@@ -37,7 +38,7 @@ const protect = async (
       return
     }
 
-    req.user = { id: decoded.id, role: user.role as 'admin' | 'user' }
+    req.user = { id: decoded.id, role: user.role as UserRole }
 
     next()
   } catch (error) {

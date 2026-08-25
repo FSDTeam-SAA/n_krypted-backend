@@ -3,8 +3,21 @@ import * as dealController from '../controllers/Deal.controller'
 import upload from '../middlewares/multer.middleware'
 import protect from '../middlewares/auth.middleware'
 import authorizeRoles from '../middlewares/authorizeRoles'
+import * as restaurantController from '../controllers/RestaurantManagement.controller'
 
 const router = Router()
+
+router.get('/manage/deals', protect, authorizeRoles('admin', 'restaurant_owner'), restaurantController.getManagedRestaurants)
+router.get('/manage/deals/:id', protect, authorizeRoles('admin', 'restaurant_owner'), restaurantController.getManagedRestaurant)
+router.get('/owner/restaurant', protect, authorizeRoles('restaurant_owner'), restaurantController.getMyRestaurant)
+router.post('/owner/restaurant', protect, authorizeRoles('restaurant_owner'), restaurantController.createOwnerRestaurant)
+router.put('/owner/restaurant/:id', protect, authorizeRoles('restaurant_owner'), restaurantController.resubmitOwnerRestaurant)
+router.post('/admin/restaurants', protect, authorizeRoles('admin'), restaurantController.createAdminRestaurant)
+router.put('/admin/restaurants/:id', protect, authorizeRoles('admin', 'restaurant_owner'), restaurantController.updateAdminRestaurant)
+router.patch('/admin/restaurants/:id/approval', protect, authorizeRoles('admin'), restaurantController.updateRestaurantApproval)
+router.post('/restaurants/:id/dishes', protect, authorizeRoles('admin', 'restaurant_owner'), restaurantController.createDish)
+router.put('/restaurants/:id/dishes/:dishId', protect, authorizeRoles('admin', 'restaurant_owner'), restaurantController.updateDish)
+router.delete('/restaurants/:id/dishes/:dishId', protect, authorizeRoles('admin', 'restaurant_owner'), restaurantController.deleteDish)
 
 // Create a new deal
 router.post(

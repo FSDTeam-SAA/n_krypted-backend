@@ -15,7 +15,11 @@ const UserSchema = new Schema<IUser>(
     resetPasswordExpires: { type: Date },
     country: { type: String },
     cityState: { type: String },
-    role: { type: String, enum: ['admin', 'user'], default: 'user' },
+    role: {
+      type: String,
+      enum: ['admin', 'user', 'restaurant_owner'],
+      default: 'user',
+    },
     avatar: { type: String }
   },
   { timestamps: true }

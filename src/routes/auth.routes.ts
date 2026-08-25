@@ -9,6 +9,9 @@ import {
   updateUser,
   getUserById,
   getAllUser,
+  getRestaurantOwners,
+  createRestaurantOwner,
+  updateRestaurantOwner,
   deleteUser,
   bulkDeleteUsers,
   resendVerification,
@@ -45,6 +48,24 @@ router.get("/single-user/:id", getUserById);
 
 router.get("/all/user", protect, authorizeRoles("admin"), getAllUser);
 
+router.get(
+  "/restaurant-owners",
+  protect,
+  authorizeRoles("admin"),
+  getRestaurantOwners
+);
+router.post(
+  "/restaurant-owners",
+  protect,
+  authorizeRoles("admin"),
+  createRestaurantOwner
+);
+router.put(
+  "/restaurant-owners/:id",
+  protect,
+  authorizeRoles("admin"),
+  updateRestaurantOwner
+);
 router.delete("/delete/user", protect, authorizeRoles("admin"), deleteUser);
 
 router.delete(
