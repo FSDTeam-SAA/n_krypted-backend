@@ -4,6 +4,16 @@ const mongoose_1 = require("mongoose");
 const ReviewSchema = new mongoose_1.Schema({
     userID: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User', required: true },
     dealID: { type: mongoose_1.Schema.Types.ObjectId, ref: 'Deal', required: true },
+    checkInID: {
+        type: mongoose_1.Schema.Types.ObjectId,
+        ref: 'CheckIn',
+        required: true,
+        unique: true,
+        sparse: true,
+        index: true,
+    },
+    dishID: { type: mongoose_1.Schema.Types.ObjectId },
+    dishName: { type: String, trim: true },
     reviewComment: { type: String, required: true },
     ratings: { type: Number, required: true, min: 1, max: 5 },
 }, { timestamps: true });

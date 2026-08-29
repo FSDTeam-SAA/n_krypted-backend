@@ -16,6 +16,7 @@ const sharp_1 = __importDefault(require("sharp"));
 const asyncHandler_1 = __importDefault(require("../utils/asyncHandler"));
 const mail_helper_1 = require("../utils/mail.helper");
 const Review_model_1 = __importDefault(require("../models/Review.model"));
+const CheckIn_model_1 = __importDefault(require("../models/CheckIn.model"));
 /*********************
  * CREATE A NEW DEAL *
  *********************/
@@ -186,21 +187,7 @@ const getSingleDeal = async (req, res) => {
             res.status(404).json({ success: false, message: "Deal not found" });
             return;
         }
-        const [bookingCounts, reviewStats, totalCheckIns] = await Promise.all([
-            Promise.all(deal.scheduleDates.map(async (scheduleDate) => {
-                const count = await Booking_model_1.default.countDocuments({
-                    dealsId: deal._id,
-                    scheduleDate: scheduleDate.date,
-                    isBooked: true,
-                });
-                return {
-                    date: scheduleDate.date ? scheduleDate.date : scheduleDate,
-                    count,
-                    spotsLeft: scheduleDate.participationsLimit
-                        ? scheduleDate.participationsLimit - count
-                        : null,
-                };
-            })),
+        const [reviewStats, totalCheckIns] = await Promise.all([
             Review_model_1.default.aggregate([
                 { $match: { dealID: deal._id } },
                 {
@@ -211,17 +198,12 @@ const getSingleDeal = async (req, res) => {
                     },
                 },
             ]),
-            Booking_model_1.default.countDocuments({
-                dealsId: deal._id,
-                isBooked: true,
-                paymentStatus: "complete",
-            }),
+            CheckIn_model_1.default.countDocuments({ restaurantId: deal._id, status: "verified" }),
         ]);
         res.status(200).json({
             success: true,
             deal: {
                 ...deal.toObject(),
-                bookingCounts,
                 rating: reviewStats[0]?.rating || 0,
                 reviewCount: reviewStats[0]?.reviewCount || 0,
                 totalCheckIns,
@@ -242,7 +224,7 @@ exports.getSingleDeal = getSingleDeal;
  **************************************************/
 const getAllDeals = async (req, res) => {
     try {
-        const { categoryName, minPrice, maxPrice, country, city, location, title, page = "1", limit = "10", status, showAll = "false", latitude, longitude, radiusKm = "25", } = req.query;
+        const { categoryName, category, minPrice, maxPrice, country, city, location, title, page = "1", limit = "10", status, showAll = "false", latitude, longitude, radiusKm = "25", } = req.query;
         const pageNumber = parseInt(page, 10);
         const itemsPerPage = parseInt(limit, 10);
         const skip = (pageNumber - 1) * itemsPerPage;
@@ -279,6 +261,9 @@ const getAllDeals = async (req, res) => {
                 categoryName: { $regex: categoryName, $options: "i" },
             });
             filter.category = { $in: matchingCategories.map((c) => c._id) };
+        }
+        if (category && mongoose_1.default.isValidObjectId(category)) {
+            filter.category = new mongoose_1.default.Types.ObjectId(category);
         }
         console.log(filter);
         const parsedLatitude = latitude === undefined ? undefined : Number(latitude);
@@ -334,43 +319,7 @@ const getAllDeals = async (req, res) => {
                 },
             ];
         }
-        // Enrich deals with booking information
-        const enrichedDeals = await Promise.all(deals.map(async (deal) => {
-            let availableDates = [];
-            if (deal.status === "activate" && Array.isArray(deal.scheduleDates)) {
-                // Get all bookings for this deal to minimize database queries
-                const bookings = await Booking_model_1.default.find({
-                    dealId: deal._id,
-                    status: "confirmed", // assuming you have a status field
-                });
-                availableDates = deal.scheduleDates
-                    .filter((s) => s &&
-                    typeof s === "object" &&
-                    s.active &&
-                    s.date &&
-                    new Date(s.date) >= new Date())
-                    .map((schedule) => {
-                    // Calculate total booked quantity for this schedule date
-                    const totalBooked = bookings
-                        .filter((b) => b.scheduleDate &&
-                        b.scheduleDate.toString() === schedule.date.toString())
-                        .reduce((sum, booking) => sum + (booking.quantity || 0), 0);
-                    const spotsLeft = schedule.participationsLimit
-                        ? schedule.participationsLimit - totalBooked
-                        : null;
-                    return {
-                        date: schedule.date,
-                        time: schedule.time,
-                        spotsLeft,
-                        bookedCount: totalBooked, // Update the bookedCount
-                    };
-                });
-            }
-            return {
-                ...deal.toObject(),
-                availableDates,
-            };
-        }));
+        const enrichedDeals = deals.map((deal) => deal.toObject());
         const dealIds = deals.map((deal) => deal._id);
         const reviewStats = await Review_model_1.default.aggregate([
             { $match: { dealID: { $in: dealIds } } },
@@ -422,6 +371,10 @@ const deleteDeal = async (req, res) => {
             res.status(404).json({ success: false, message: "Deal not found" });
             return;
         }
+        await Promise.all([
+            CheckIn_model_1.default.deleteMany({ restaurantId: deal._id }),
+            Review_model_1.default.deleteMany({ dealID: deal._id }),
+        ]);
         res
             .status(200)
             .json({ success: true, message: "Deal deleted successfully" });
@@ -446,7 +399,12 @@ const bulkDeleteDeals = async (req, res) => {
             });
             return;
         }
-        const result = await Deal_model_1.default.deleteMany({ _id: { $in: ids } });
+        const restaurantIds = await Deal_model_1.default.distinct("_id", { _id: { $in: ids } });
+        const result = await Deal_model_1.default.deleteMany({ _id: { $in: restaurantIds } });
+        await Promise.all([
+            CheckIn_model_1.default.deleteMany({ restaurantId: { $in: restaurantIds } }),
+            Review_model_1.default.deleteMany({ dealID: { $in: restaurantIds } }),
+        ]);
         res.status(200).json({
             success: true,
             deletedCount: result.deletedCount,

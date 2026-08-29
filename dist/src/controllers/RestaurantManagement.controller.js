@@ -8,12 +8,56 @@ const bcrypt_1 = __importDefault(require("bcrypt"));
 const mongoose_1 = __importDefault(require("mongoose"));
 const Deal_model_1 = __importDefault(require("../models/Deal.model"));
 const User_model_1 = __importDefault(require("../models/User.model"));
+const CheckIn_model_1 = __importDefault(require("../models/CheckIn.model"));
+const Review_model_1 = __importDefault(require("../models/Review.model"));
+const cloudinary_1 = __importDefault(require("../utils/cloudinary"));
 const safeOwnerFields = "name email phoneNumber role";
 const approvalStatuses = ["pending", "approved", "rejected"];
 const clean = (value) => value?.toString().trim() || "";
 const numberValue = (value) => {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : undefined;
+};
+const booleanValue = (value, fallback = false) => {
+    if (value === undefined || value === null)
+        return fallback;
+    if (typeof value === "boolean")
+        return value;
+    return value.toString().toLowerCase() === "true";
+};
+const stringArray = (value) => {
+    if (Array.isArray(value))
+        return value.map(clean).filter(Boolean);
+    if (typeof value !== "string" || !value.trim())
+        return [];
+    try {
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) ? parsed.map(clean).filter(Boolean) : [];
+    }
+    catch {
+        return [clean(value)].filter(Boolean);
+    }
+};
+const uploadImage = async (file) => {
+    if (!file.mimetype.startsWith("image/")) {
+        throw new Error("Only image files are allowed");
+    }
+    return new Promise((resolve, reject) => {
+        const stream = cloudinary_1.default.uploader.upload_stream({ resource_type: "image", folder: "n-krypted/restaurants" }, (error, result) => {
+            if (error)
+                return reject(error);
+            const imageUrl = result?.secure_url || "";
+            return imageUrl ? resolve(imageUrl) : reject(new Error("Image upload failed"));
+        });
+        stream.end(file.buffer);
+    });
+};
+const restaurantFiles = (req) => req.files && Array.isArray(req.files)
+    ? req.files
+    : [];
+const addRestaurantUploads = async (req, payload) => {
+    const uploadedImages = await Promise.all(restaurantFiles(req).map(uploadImage));
+    payload.images = [...new Set([...uploadedImages, ...payload.images])].slice(0, 4);
 };
 const restaurantPayload = (body) => {
     const rawLocation = typeof body.location === "string" ? JSON.parse(body.location) : body.location || {};
@@ -31,8 +75,8 @@ const restaurantPayload = (body) => {
             latitude,
             longitude,
         },
-        images: Array.isArray(body.images) ? body.images.map(clean).filter(Boolean) : [],
-        offers: Array.isArray(body.offers) ? body.offers.map(clean).filter(Boolean) : [],
+        images: stringArray(body.images),
+        offers: stringArray(body.offers),
         category: body.category && mongoose_1.default.isValidObjectId(body.category)
             ? new mongoose_1.default.Types.ObjectId(body.category)
             : undefined,
@@ -56,12 +100,29 @@ const validateRestaurant = (payload) => {
     return null;
 };
 const canManage = (req, restaurant) => req.user?.role === "admin" || restaurant.owner?.toString() === req.user?.id;
+const withRestaurantMetrics = async (restaurant) => {
+    if (!restaurant)
+        return restaurant;
+    const [totalCheckIns, reviewStats] = await Promise.all([
+        CheckIn_model_1.default.countDocuments({ restaurantId: restaurant._id, status: "verified" }),
+        Review_model_1.default.aggregate([
+            { $match: { dealID: restaurant._id } },
+            { $group: { _id: "$dealID", reviewCount: { $sum: 1 }, rating: { $avg: "$ratings" } } },
+        ]),
+    ]);
+    return {
+        ...restaurant.toObject(),
+        totalCheckIns,
+        reviewCount: reviewStats[0]?.reviewCount || 0,
+        rating: reviewStats[0]?.rating || 0,
+    };
+};
 const getMyRestaurant = async (req, res) => {
     try {
         const restaurant = await Deal_model_1.default.findOne({ owner: req.user?.id })
             .populate("category")
             .populate("owner", safeOwnerFields);
-        res.status(200).json({ success: true, restaurant });
+        res.status(200).json({ success: true, restaurant: await withRestaurantMetrics(restaurant) });
     }
     catch (error) {
         res.status(500).json({ success: false, message: "Failed to load your restaurant", error: error.message });
@@ -74,10 +135,18 @@ const createOwnerRestaurant = async (req, res) => {
             res.status(409).json({ success: false, message: "You have already submitted a restaurant" });
             return;
         }
-        const payload = restaurantPayload(req.body);
+        const payload = restaurantPayload({
+            ...req.body,
+            images: req.body.existingImages ?? req.body.images,
+        });
         const validationError = validateRestaurant(payload);
         if (validationError) {
             res.status(400).json({ success: false, message: validationError });
+            return;
+        }
+        await addRestaurantUploads(req, payload);
+        if (!payload.images.length) {
+            res.status(400).json({ success: false, message: "Please upload at least one restaurant image" });
             return;
         }
         const restaurant = await Deal_model_1.default.create({
@@ -107,10 +176,18 @@ const resubmitOwnerRestaurant = async (req, res) => {
             res.status(409).json({ success: false, message: "Only a rejected restaurant can be edited and resubmitted" });
             return;
         }
-        const payload = restaurantPayload(req.body);
+        const payload = restaurantPayload({
+            ...req.body,
+            images: req.body.existingImages ?? req.body.images,
+        });
         const validationError = validateRestaurant(payload);
         if (validationError) {
             res.status(400).json({ success: false, message: validationError });
+            return;
+        }
+        await addRestaurantUploads(req, payload);
+        if (!payload.images.length) {
+            res.status(400).json({ success: false, message: "Please upload at least one restaurant image" });
             return;
         }
         Object.assign(restaurant, payload, {
@@ -130,7 +207,9 @@ exports.resubmitOwnerRestaurant = resubmitOwnerRestaurant;
 const createAdminRestaurant = async (req, res) => {
     let createdOwnerId;
     try {
-        const ownerBody = req.body.owner || {};
+        const ownerBody = typeof req.body.owner === "string"
+            ? JSON.parse(req.body.owner)
+            : req.body.owner || {};
         const name = clean(ownerBody.name);
         const email = clean(ownerBody.email).toLowerCase();
         const password = ownerBody.password?.toString() || "";
@@ -138,10 +217,18 @@ const createAdminRestaurant = async (req, res) => {
             res.status(400).json({ success: false, message: "Owner name, email and a password of at least 6 characters are required" });
             return;
         }
-        const payload = restaurantPayload(req.body);
+        const payload = restaurantPayload({
+            ...req.body,
+            images: req.body.existingImages ?? req.body.images,
+        });
         const validationError = validateRestaurant(payload);
         if (validationError) {
             res.status(400).json({ success: false, message: validationError });
+            return;
+        }
+        await addRestaurantUploads(req, payload);
+        if (!payload.images.length) {
+            res.status(400).json({ success: false, message: "Please upload at least one restaurant image" });
             return;
         }
         let owner = await User_model_1.default.findOne({ email });
@@ -192,10 +279,18 @@ const updateAdminRestaurant = async (req, res) => {
             res.status(404).json({ success: false, message: "Restaurant not found" });
             return;
         }
-        const payload = restaurantPayload(req.body);
+        const payload = restaurantPayload({
+            ...req.body,
+            images: req.body.existingImages ?? req.body.images,
+        });
         const validationError = validateRestaurant(payload);
         if (validationError) {
             res.status(400).json({ success: false, message: validationError });
+            return;
+        }
+        await addRestaurantUploads(req, payload);
+        if (!payload.images.length) {
+            res.status(400).json({ success: false, message: "Please upload at least one restaurant image" });
             return;
         }
         Object.assign(restaurant, payload);
@@ -229,9 +324,10 @@ const getManagedRestaurants = async (req, res) => {
                 .skip((page - 1) * limit)
                 .limit(limit),
         ]);
+        const restaurantsWithMetrics = await Promise.all(restaurants.map(withRestaurantMetrics));
         res.status(200).json({
             success: true,
-            restaurants,
+            restaurants: restaurantsWithMetrics,
             pagination: { currentPage: page, totalPages: Math.ceil(totalItems / limit), totalItems, itemsPerPage: limit },
         });
     }
@@ -247,7 +343,7 @@ const getManagedRestaurant = async (req, res) => {
             res.status(404).json({ success: false, message: "Restaurant not found" });
             return;
         }
-        res.status(200).json({ success: true, restaurant });
+        res.status(200).json({ success: true, restaurant: await withRestaurantMetrics(restaurant) });
     }
     catch (error) {
         res.status(500).json({ success: false, message: "Failed to load restaurant", error: error.message });
@@ -303,14 +399,21 @@ const createDish = async (req, res) => {
             res.status(400).json({ success: false, message: "Dish name and a valid price are required" });
             return;
         }
+        const image = req.file
+            ? await uploadImage(req.file)
+            : clean(req.body.existingImage ?? req.body.image);
+        if (!image) {
+            res.status(400).json({ success: false, message: "Please upload a dish image" });
+            return;
+        }
         restaurant.dishes.push({
             name,
             price,
             description: clean(req.body.description),
-            image: clean(req.body.image),
+            image,
             category: clean(req.body.category),
-            isSignatureDish: Boolean(req.body.isSignatureDish),
-            isActive: req.body.isActive !== false,
+            isSignatureDish: booleanValue(req.body.isSignatureDish),
+            isActive: booleanValue(req.body.isActive, true),
         });
         await restaurant.save();
         res.status(201).json({ success: true, message: "Dish added", restaurant });
@@ -336,16 +439,26 @@ const updateDish = async (req, res) => {
             res.status(404).json({ success: false, message: "Dish not found" });
             return;
         }
-        for (const field of ["name", "description", "image", "category"]) {
+        for (const field of ["name", "description", "category"]) {
             if (req.body[field] !== undefined)
                 dish[field] = clean(req.body[field]);
+        }
+        if (req.file) {
+            dish.image = await uploadImage(req.file);
+        }
+        else if (req.body.existingImage !== undefined || req.body.image !== undefined) {
+            dish.image = clean(req.body.existingImage ?? req.body.image);
+        }
+        if (!dish.image) {
+            res.status(400).json({ success: false, message: "Please upload a dish image" });
+            return;
         }
         if (req.body.price !== undefined)
             dish.price = numberValue(req.body.price);
         if (req.body.isSignatureDish !== undefined)
-            dish.isSignatureDish = Boolean(req.body.isSignatureDish);
+            dish.isSignatureDish = booleanValue(req.body.isSignatureDish);
         if (req.body.isActive !== undefined)
-            dish.isActive = Boolean(req.body.isActive);
+            dish.isActive = booleanValue(req.body.isActive);
         await restaurant.save();
         res.status(200).json({ success: true, message: "Dish updated", restaurant });
     }

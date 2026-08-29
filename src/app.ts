@@ -7,9 +7,8 @@ import reviewRoutes from './routes/review.routes'
 import blogsRoutes from './routes/blog.routes'
 import categoryRoutes from './routes/category.routes'
 import dealRoutes from './routes/deal.routes'
-import bookingRoutes from './routes/booking.routes'
 import errorMiddleware from './middlewares/error.middleware'
-import paymentRoutes from './routes/payment.routes'
+import checkInRoutes from './routes/checkIn.routes'
 import feedbackRoutes from './routes/feedback.routes'
 import notificationRoutes from './routes/notification.routes'
 import authtestRoute from './routes/authtest'
@@ -60,8 +59,7 @@ app.use('/api', reviewRoutes)
 app.use('/api', blogsRoutes)
 app.use('/api', categoryRoutes)
 app.use('/api', dealRoutes)
-app.use('/api', bookingRoutes)
-app.use('/api', paymentRoutes)
+app.use('/api', checkInRoutes)
 app.use('/api', feedbackRoutes)
 app.use('/api', notificationRoutes)
 app.use('/api', authtestRoute)

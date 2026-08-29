@@ -7,7 +7,7 @@ import bcrypt from "bcrypt";
 import cloudinary from "../utils/cloudinary";
 import { getPaginationParams, buildMetaPagination } from "../utils/pagination";
 import nodemailer from "nodemailer";
-import Booking from "../models/Booking.model";
+import CheckIn from "../models/CheckIn.model";
 import Review from "../models/Review.model";
 import mongoose from "mongoose";
 
@@ -316,13 +316,18 @@ export const forgotPassword = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { email } = req.body;
+    const email = req.body?.email?.toString().trim().toLowerCase();
+    if (!email) {
+      res.status(400).json({ success: false, message: "E-Mail ist erforderlich" });
+      return;
+    }
 
     const user = await User.findOne({ email });
 
     // Always respond with success to prevent email enumeration
     if (!user) {
       res.status(200).json({
+        success: true,
         message:
           "Falls diese E-Mail registriert ist, wurde ein Zurücksetzungslink gesendet.",
       });
@@ -338,23 +343,26 @@ export const forgotPassword = async (
     await user.save();
 
     // Build reset link
-    const resetUrl = `${
-      process.env.FRONTEND_URL
-    }/reset-password?token=${resetToken}&email=${encodeURIComponent(email)}`;
+    const frontendUrl = (process.env.FRONTEND_URL || "http://localhost:3000").replace(/\/$/, "");
+    const resetUrl = `${frontendUrl}/reset-password?token=${resetToken}&email=${encodeURIComponent(email)}`;
 
     // --- Direct SMTP Send ---
-    const transporter = nodemailer.createTransport({
-      host: "smtps.udag.de",
+    const smtpUser = process.env.FORGOT_PASSWORD_EMAIL_USER || process.env.OTP_EMAIL_USER;
+    const smtpPass = process.env.FORGOT_PASSWORD_EMAIL_PASS || process.env.OTP_EMAIL_PASS;
+    const transporter = smtpUser && smtpPass ? nodemailer.createTransport({
+      host: process.env.SMTP_HOST || "smtps.udag.de",
       port: 465,
       secure: true, // SSL
       auth: {
-        user: process.env.FORGOT_PASSWORD_EMAIL_USER, // your united-domains full email
-        pass: process.env.FORGOT_PASSWORD_EMAIL_PASS, // your email password
+        user: smtpUser,
+        pass: smtpPass,
       },
-    });
+    }) : null;
 
-    await transporter.sendMail({
-      from: `"Walk Throughz" <${process.env.FORGOT_PASSWORD_EMAIL_USER}>`,
+    if (transporter) {
+      try {
+        await transporter.sendMail({
+      from: `"Walk Throughz" <${smtpUser}>`,
       to: email,
       subject: "Passwort zurücksetzen – dein sicherer Link",
       text: `Neues Passwort, neues Glück
@@ -441,11 +449,26 @@ Dein Walk Throughz Team`,
 </html>
 
 `,
-    });
+        });
+      } catch (mailError) {
+        console.warn(
+          `[FORGOT PASSWORD] E-mail sending failed: ${(mailError as Error).message}`
+        );
+        if (process.env.NODE_ENV !== "production") {
+          console.info(`[FORGOT PASSWORD] Development reset URL for ${email}: ${resetUrl}`);
+        }
+      }
+    } else {
+      console.warn("[FORGOT PASSWORD] SMTP credentials are not configured.");
+      if (process.env.NODE_ENV !== "production") {
+        console.info(`[FORGOT PASSWORD] Development reset URL for ${email}: ${resetUrl}`);
+      }
+    }
 
     // --- End SMTP Send ---
 
     res.status(200).json({
+      success: true,
       message:
         "Falls diese E-Mail registriert ist, wurde ein Zurücksetzungslink gesendet.",
     });
@@ -690,7 +713,8 @@ export const changePassword = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { currentPassword, newPassword, userId } = req.body;
+    const { currentPassword, newPassword } = req.body;
+    const userId = req.user?.id;
 
     const user = await User.findById(userId);
     if (!user) {
@@ -750,7 +774,8 @@ export const updateUser = async (
       });
     }
 
-    const { name, phoneNumber, userId, country, cityState } = req.body;
+    const { name, phoneNumber, country, cityState } = req.body;
+    const userId = req.user?.id;
 
     if (!userId) {
       res
@@ -799,6 +824,11 @@ export const getUserById = async (
   try {
     const { id } = req.params;
 
+    if (req.user?.role !== "admin" && req.user?.id !== id) {
+      res.status(403).json({ success: false, message: "Access denied" });
+      return;
+    }
+
     const user = await User.findById(id).select(
       "-password -verificationCode -resetPasswordToken -resetPasswordExpires"
     );
@@ -844,13 +874,11 @@ export const getAllUser = async (
         .lean(),
     ]);
     const userIds = users.map((user) => user._id);
-    const [bookingCounts, reviewCounts] = await Promise.all([
-      Booking.aggregate([
+    const [checkInCounts, reviewCounts] = await Promise.all([
+      CheckIn.aggregate([
         {
           $match: {
             userId: { $in: userIds },
-            isBooked: true,
-            paymentStatus: "complete",
           },
         },
         { $group: { _id: "$userId", count: { $sum: 1 } } },
@@ -860,15 +888,15 @@ export const getAllUser = async (
         { $group: { _id: "$userID", count: { $sum: 1 } } },
       ]),
     ]);
-    const bookingCountByUser = new Map(
-      bookingCounts.map((item) => [item._id.toString(), item.count])
+    const checkInCountByUser = new Map(
+      checkInCounts.map((item) => [item._id.toString(), item.count])
     );
     const reviewCountByUser = new Map(
       reviewCounts.map((item) => [item._id.toString(), item.count])
     );
     const allUser = users.map((user) => ({
       ...user,
-      checkInCount: bookingCountByUser.get(user._id.toString()) || 0,
+      checkInCount: checkInCountByUser.get(user._id.toString()) || 0,
       reviewCount: reviewCountByUser.get(user._id.toString()) || 0,
     }));
 
@@ -980,6 +1008,7 @@ export const updateRestaurantOwner = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
+
     if (!mongoose.isValidObjectId(id)) {
       res.status(400).json({ success: false, message: "Invalid owner ID" });
       return;
@@ -1065,14 +1094,18 @@ export const deleteUser = async (
 ) => {
   try {
     const userId = req.query.userId;
-    const deleteUser = await User.findByIdAndDelete(userId);
-    if (!deleteUser) {
+    const deletedUser = await User.findOneAndDelete({ _id: userId, role: "user" });
+    if (!deletedUser) {
       res.status(404).json({
         success: false,
         message: "Benutzer konnte nicht gelöscht werden",
       });
       return;
     }
+    await Promise.all([
+      CheckIn.deleteMany({ userId: deletedUser._id }),
+      Review.deleteMany({ userID: deletedUser._id }),
+    ]);
 
     res.status(200).json({
       success: true,
@@ -1100,11 +1133,15 @@ export const bulkDeleteUsers = async (
       });
       return;
     }
-
-    const result = await User.deleteMany({
+    const deletableIds = await User.distinct("_id", {
       _id: { $in: ids, $ne: req.user?.id },
       role: "user",
     });
+    const result = await User.deleteMany({ _id: { $in: deletableIds } });
+    await Promise.all([
+      CheckIn.deleteMany({ userId: { $in: deletableIds } }),
+      Review.deleteMany({ userID: { $in: deletableIds } }),
+    ]);
 
     res.status(200).json({
       success: true,

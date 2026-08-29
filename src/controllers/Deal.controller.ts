@@ -12,6 +12,7 @@ import sharp from "sharp";
 import asyncHandler from "../utils/asyncHandler";
 import { sendMail } from "../utils/mail.helper";
 import Review from "../models/Review.model";
+import CheckIn from "../models/CheckIn.model";
 
 // Types
 export type MetaPagination = {
@@ -247,23 +248,7 @@ export const getSingleDeal = async (
       return;
     }
 
-    const [bookingCounts, reviewStats, totalCheckIns] = await Promise.all([
-      Promise.all(
-        deal.scheduleDates.map(async (scheduleDate: any) => {
-          const count = await Booking.countDocuments({
-            dealsId: deal._id,
-            scheduleDate: scheduleDate.date,
-            isBooked: true,
-          });
-          return {
-            date: scheduleDate.date ? scheduleDate.date : scheduleDate,
-            count,
-            spotsLeft: scheduleDate.participationsLimit
-              ? scheduleDate.participationsLimit - count
-              : null,
-          };
-        })
-      ),
+    const [reviewStats, totalCheckIns] = await Promise.all([
       Review.aggregate([
         { $match: { dealID: deal._id } },
         {
@@ -274,18 +259,13 @@ export const getSingleDeal = async (
           },
         },
       ]),
-      Booking.countDocuments({
-        dealsId: deal._id,
-        isBooked: true,
-        paymentStatus: "complete",
-      }),
+      CheckIn.countDocuments({ restaurantId: deal._id, status: "verified" }),
     ]);
 
     res.status(200).json({
       success: true,
       deal: {
         ...deal.toObject(),
-        bookingCounts,
         rating: reviewStats[0]?.rating || 0,
         reviewCount: reviewStats[0]?.reviewCount || 0,
         totalCheckIns,
@@ -310,6 +290,7 @@ export const getAllDeals = async (
   try {
     const {
       categoryName,
+      category,
       minPrice,
       maxPrice,
       country,
@@ -325,6 +306,7 @@ export const getAllDeals = async (
       radiusKm = "25",
     } = req.query as {
       categoryName?: string;
+      category?: string;
       minPrice?: string;
       maxPrice?: string;
       country?: string;
@@ -380,6 +362,9 @@ export const getAllDeals = async (
       });
 
       filter.category = { $in: matchingCategories.map((c) => c._id) };
+    }
+    if (category && mongoose.isValidObjectId(category)) {
+      filter.category = new mongoose.Types.ObjectId(category);
     }
 
     console.log(filter);
@@ -439,56 +424,7 @@ export const getAllDeals = async (
       ];
     }
 
-    // Enrich deals with booking information
-    const enrichedDeals = await Promise.all(
-      deals.map(async (deal) => {
-        let availableDates: any[] = [];
-
-        if (deal.status === "activate" && Array.isArray(deal.scheduleDates)) {
-          // Get all bookings for this deal to minimize database queries
-          const bookings = await Booking.find({
-            dealId: deal._id,
-            status: "confirmed", // assuming you have a status field
-          });
-
-          availableDates = deal.scheduleDates
-            .filter(
-              (s: any) =>
-                s &&
-                typeof s === "object" &&
-                s.active &&
-                s.date &&
-                new Date(s.date) >= new Date()
-            )
-            .map((schedule: any) => {
-              // Calculate total booked quantity for this schedule date
-              const totalBooked = bookings
-                .filter(
-                  (b) =>
-                    b.scheduleDate &&
-                    b.scheduleDate.toString() === schedule.date.toString()
-                )
-                .reduce((sum, booking) => sum + (booking.quantity || 0), 0);
-
-              const spotsLeft = schedule.participationsLimit
-                ? schedule.participationsLimit - totalBooked
-                : null;
-
-              return {
-                date: schedule.date,
-                time: schedule.time,
-                spotsLeft,
-                bookedCount: totalBooked, // Update the bookedCount
-              };
-            });
-        }
-
-        return {
-          ...deal.toObject(),
-          availableDates,
-        };
-      })
-    );
+    const enrichedDeals = deals.map((deal) => deal.toObject());
 
     const dealIds = deals.map((deal) => deal._id);
     const reviewStats = await Review.aggregate([
@@ -548,6 +484,10 @@ export const deleteDeal = async (
       res.status(404).json({ success: false, message: "Deal not found" });
       return;
     }
+    await Promise.all([
+      CheckIn.deleteMany({ restaurantId: deal._id }),
+      Review.deleteMany({ dealID: deal._id }),
+    ]);
     res
       .status(200)
       .json({ success: true, message: "Deal deleted successfully" });
@@ -576,8 +516,12 @@ export const bulkDeleteDeals = async (
       });
       return;
     }
-
-    const result = await Deal.deleteMany({ _id: { $in: ids } });
+    const restaurantIds = await Deal.distinct("_id", { _id: { $in: ids } });
+    const result = await Deal.deleteMany({ _id: { $in: restaurantIds } });
+    await Promise.all([
+      CheckIn.deleteMany({ restaurantId: { $in: restaurantIds } }),
+      Review.deleteMany({ dealID: { $in: restaurantIds } }),
+    ]);
     res.status(200).json({
       success: true,
       deletedCount: result.deletedCount,

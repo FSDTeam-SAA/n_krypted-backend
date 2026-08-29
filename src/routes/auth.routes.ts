@@ -38,13 +38,13 @@ router.post("/verify", verifyCode);
 router.post("/reset-password", resetPassword);
 
 // Change Password (Protected Route)
-router.post("/change-password", changePassword);
+router.post("/change-password", protect, changePassword);
 
 // Update User Information (Protected Route)
-router.put("/update-profile", upload.single("avatar"), updateUser);
+router.put("/update-profile", protect, upload.single("avatar"), updateUser);
 
 // get a single user by id
-router.get("/single-user/:id", getUserById);
+router.get("/single-user/:id", protect, getUserById);
 
 router.get("/all/user", protect, authorizeRoles("admin"), getAllUser);
 

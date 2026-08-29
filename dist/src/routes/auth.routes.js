@@ -20,11 +20,11 @@ router.post("/verify", Auth_controller_1.verifyCode);
 // Reset Password
 router.post("/reset-password", Auth_controller_1.resetPassword);
 // Change Password (Protected Route)
-router.post("/change-password", Auth_controller_1.changePassword);
+router.post("/change-password", auth_middleware_1.default, Auth_controller_1.changePassword);
 // Update User Information (Protected Route)
-router.put("/update-profile", multer_middleware_1.default.single("avatar"), Auth_controller_1.updateUser);
+router.put("/update-profile", auth_middleware_1.default, multer_middleware_1.default.single("avatar"), Auth_controller_1.updateUser);
 // get a single user by id
-router.get("/single-user/:id", Auth_controller_1.getUserById);
+router.get("/single-user/:id", auth_middleware_1.default, Auth_controller_1.getUserById);
 router.get("/all/user", auth_middleware_1.default, (0, authorizeRoles_1.default)("admin"), Auth_controller_1.getAllUser);
 router.get("/restaurant-owners", auth_middleware_1.default, (0, authorizeRoles_1.default)("admin"), Auth_controller_1.getRestaurantOwners);
 router.post("/restaurant-owners", auth_middleware_1.default, (0, authorizeRoles_1.default)("admin"), Auth_controller_1.createRestaurantOwner);

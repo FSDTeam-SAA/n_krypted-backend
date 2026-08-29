@@ -11,7 +11,7 @@ const bcrypt_1 = __importDefault(require("bcrypt"));
 const cloudinary_1 = __importDefault(require("../utils/cloudinary"));
 const pagination_1 = require("../utils/pagination");
 const nodemailer_1 = __importDefault(require("nodemailer"));
-const Booking_model_1 = __importDefault(require("../models/Booking.model"));
+const CheckIn_model_1 = __importDefault(require("../models/CheckIn.model"));
 const Review_model_1 = __importDefault(require("../models/Review.model"));
 const mongoose_1 = __importDefault(require("mongoose"));
 // Benutzerregistrierung
@@ -282,11 +282,16 @@ exports.login = login;
 // }
 const forgotPassword = async (req, res) => {
     try {
-        const { email } = req.body;
+        const email = req.body?.email?.toString().trim().toLowerCase();
+        if (!email) {
+            res.status(400).json({ success: false, message: "E-Mail ist erforderlich" });
+            return;
+        }
         const user = await User_model_1.default.findOne({ email });
         // Always respond with success to prevent email enumeration
         if (!user) {
             res.status(200).json({
+                success: true,
                 message: "Falls diese E-Mail registriert ist, wurde ein Zurücksetzungslink gesendet.",
             });
             return;
@@ -298,22 +303,27 @@ const forgotPassword = async (req, res) => {
         user.resetPasswordExpires = new Date(Date.now() + 3600000); // 1 hour
         await user.save();
         // Build reset link
-        const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}&email=${encodeURIComponent(email)}`;
+        const frontendUrl = (process.env.FRONTEND_URL || "http://localhost:3000").replace(/\/$/, "");
+        const resetUrl = `${frontendUrl}/reset-password?token=${resetToken}&email=${encodeURIComponent(email)}`;
         // --- Direct SMTP Send ---
-        const transporter = nodemailer_1.default.createTransport({
-            host: "smtps.udag.de",
+        const smtpUser = process.env.FORGOT_PASSWORD_EMAIL_USER || process.env.OTP_EMAIL_USER;
+        const smtpPass = process.env.FORGOT_PASSWORD_EMAIL_PASS || process.env.OTP_EMAIL_PASS;
+        const transporter = smtpUser && smtpPass ? nodemailer_1.default.createTransport({
+            host: process.env.SMTP_HOST || "smtps.udag.de",
             port: 465,
             secure: true, // SSL
             auth: {
-                user: process.env.FORGOT_PASSWORD_EMAIL_USER, // your united-domains full email
-                pass: process.env.FORGOT_PASSWORD_EMAIL_PASS, // your email password
+                user: smtpUser,
+                pass: smtpPass,
             },
-        });
-        await transporter.sendMail({
-            from: `"Walk Throughz" <${process.env.FORGOT_PASSWORD_EMAIL_USER}>`,
-            to: email,
-            subject: "Passwort zurücksetzen – dein sicherer Link",
-            text: `Neues Passwort, neues Glück
+        }) : null;
+        if (transporter) {
+            try {
+                await transporter.sendMail({
+                    from: `"Walk Throughz" <${smtpUser}>`,
+                    to: email,
+                    subject: "Passwort zurücksetzen – dein sicherer Link",
+                    text: `Neues Passwort, neues Glück
 
 Hey,
 du hast angefordert, dein Passwort zurückzusetzen.
@@ -327,7 +337,7 @@ Aus Sicherheitsgründen ist dieser Link nur für kurze Zeit gültig.
 
 Viele Grüße
 Dein Walk Throughz Team`,
-            html: `
+                    html: `
 <!DOCTYPE html>
 <html lang="de">
 <head>
@@ -397,9 +407,24 @@ Dein Walk Throughz Team`,
 </html>
 
 `,
-        });
+                });
+            }
+            catch (mailError) {
+                console.warn(`[FORGOT PASSWORD] E-mail sending failed: ${mailError.message}`);
+                if (process.env.NODE_ENV !== "production") {
+                    console.info(`[FORGOT PASSWORD] Development reset URL for ${email}: ${resetUrl}`);
+                }
+            }
+        }
+        else {
+            console.warn("[FORGOT PASSWORD] SMTP credentials are not configured.");
+            if (process.env.NODE_ENV !== "production") {
+                console.info(`[FORGOT PASSWORD] Development reset URL for ${email}: ${resetUrl}`);
+            }
+        }
         // --- End SMTP Send ---
         res.status(200).json({
+            success: true,
             message: "Falls diese E-Mail registriert ist, wurde ein Zurücksetzungslink gesendet.",
         });
     }
@@ -620,7 +645,8 @@ exports.resetPassword = resetPassword;
 // Passwort ändern
 const changePassword = async (req, res) => {
     try {
-        const { currentPassword, newPassword, userId } = req.body;
+        const { currentPassword, newPassword } = req.body;
+        const userId = req.user?.id;
         const user = await User_model_1.default.findById(userId);
         if (!user) {
             res
@@ -673,7 +699,8 @@ const updateUser = async (req, res) => {
                 stream.end(req.file.buffer);
             });
         }
-        const { name, phoneNumber, userId, country, cityState } = req.body;
+        const { name, phoneNumber, country, cityState } = req.body;
+        const userId = req.user?.id;
         if (!userId) {
             res
                 .status(400)
@@ -718,6 +745,10 @@ exports.updateUser = updateUser;
 const getUserById = async (req, res, next) => {
     try {
         const { id } = req.params;
+        if (req.user?.role !== "admin" && req.user?.id !== id) {
+            res.status(403).json({ success: false, message: "Access denied" });
+            return;
+        }
         const user = await User_model_1.default.findById(id).select("-password -verificationCode -resetPasswordToken -resetPasswordExpires");
         if (!user) {
             res.status(404).json({ message: "Benutzer nicht gefunden" });
@@ -756,13 +787,11 @@ const getAllUser = async (req, res, next) => {
                 .lean(),
         ]);
         const userIds = users.map((user) => user._id);
-        const [bookingCounts, reviewCounts] = await Promise.all([
-            Booking_model_1.default.aggregate([
+        const [checkInCounts, reviewCounts] = await Promise.all([
+            CheckIn_model_1.default.aggregate([
                 {
                     $match: {
                         userId: { $in: userIds },
-                        isBooked: true,
-                        paymentStatus: "complete",
                     },
                 },
                 { $group: { _id: "$userId", count: { $sum: 1 } } },
@@ -772,11 +801,11 @@ const getAllUser = async (req, res, next) => {
                 { $group: { _id: "$userID", count: { $sum: 1 } } },
             ]),
         ]);
-        const bookingCountByUser = new Map(bookingCounts.map((item) => [item._id.toString(), item.count]));
+        const checkInCountByUser = new Map(checkInCounts.map((item) => [item._id.toString(), item.count]));
         const reviewCountByUser = new Map(reviewCounts.map((item) => [item._id.toString(), item.count]));
         const allUser = users.map((user) => ({
             ...user,
-            checkInCount: bookingCountByUser.get(user._id.toString()) || 0,
+            checkInCount: checkInCountByUser.get(user._id.toString()) || 0,
             reviewCount: reviewCountByUser.get(user._id.toString()) || 0,
         }));
         const meta = (0, pagination_1.buildMetaPagination)(totalUser, page, limit);
@@ -948,14 +977,18 @@ exports.updateRestaurantOwner = updateRestaurantOwner;
 const deleteUser = async (req, res, next) => {
     try {
         const userId = req.query.userId;
-        const deleteUser = await User_model_1.default.findByIdAndDelete(userId);
-        if (!deleteUser) {
+        const deletedUser = await User_model_1.default.findOneAndDelete({ _id: userId, role: "user" });
+        if (!deletedUser) {
             res.status(404).json({
                 success: false,
                 message: "Benutzer konnte nicht gelöscht werden",
             });
             return;
         }
+        await Promise.all([
+            CheckIn_model_1.default.deleteMany({ userId: deletedUser._id }),
+            Review_model_1.default.deleteMany({ userID: deletedUser._id }),
+        ]);
         res.status(200).json({
             success: true,
             message: "Benutzer erfolgreich gelöscht",
@@ -977,10 +1010,15 @@ const bulkDeleteUsers = async (req, res, next) => {
             });
             return;
         }
-        const result = await User_model_1.default.deleteMany({
+        const deletableIds = await User_model_1.default.distinct("_id", {
             _id: { $in: ids, $ne: req.user?.id },
             role: "user",
         });
+        const result = await User_model_1.default.deleteMany({ _id: { $in: deletableIds } });
+        await Promise.all([
+            CheckIn_model_1.default.deleteMany({ userId: { $in: deletableIds } }),
+            Review_model_1.default.deleteMany({ userID: { $in: deletableIds } }),
+        ]);
         res.status(200).json({
             success: true,
             deletedCount: result.deletedCount,
