@@ -227,7 +227,11 @@ const login = async (req, res) => {
         const token = jsonwebtoken_1.default.sign({ id: user._id }, process.env.JWT_SECRET, {
             expiresIn: "50h",
         });
-        const safeUser = await User_model_1.default.findById(user._id).select("-password -verificationCode -resetPasswordToken -resetPasswordExpires");
+        const safeUser = user.toObject();
+        delete safeUser.password;
+        delete safeUser.verificationCode;
+        delete safeUser.resetPasswordToken;
+        delete safeUser.resetPasswordExpires;
         res.status(200).json({ success: true, data: safeUser, token: token });
     }
     catch (error) {

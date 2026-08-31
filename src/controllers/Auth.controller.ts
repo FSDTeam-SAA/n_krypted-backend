@@ -251,9 +251,11 @@ export const login = async (req: Request, res: Response) => {
       expiresIn: "50h",
     });
 
-    const safeUser = await User.findById(user._id).select(
-      "-password -verificationCode -resetPasswordToken -resetPasswordExpires"
-    );
+    const safeUser = user.toObject() as unknown as Record<string, unknown>;
+    delete safeUser.password;
+    delete safeUser.verificationCode;
+    delete safeUser.resetPasswordToken;
+    delete safeUser.resetPasswordExpires;
     res.status(200).json({ success: true, data: safeUser, token: token });
   } catch (error: unknown) {
     res.status(500).json({
