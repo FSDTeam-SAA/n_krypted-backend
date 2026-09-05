@@ -77,9 +77,13 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     // 1. Check if user exists
     let user = await User.findOne({ email });
     if (user && user.isVerified) {
-      res
-        .status(400)
-        .json({ success: false, message: "User already exists and is verified" });
+      res.status(409).json({
+        success: false,
+        message:
+          user.role === "restaurant_owner"
+            ? "Diese E-Mail-Adresse ist bereits als Restaurantbesitzer registriert."
+            : "Diese E-Mail-Adresse ist bereits registriert.",
+      });
       return;
     }
 
@@ -855,7 +859,6 @@ export const getAllUser = async (
     const { page, limit, skip } = getPaginationParams(req.query);
     const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
     const filter = {
-      role: { $ne: "restaurant_owner" },
       ...(search
         ? {
           $or: [

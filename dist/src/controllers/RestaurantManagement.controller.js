@@ -55,6 +55,14 @@ const uploadImage = async (file) => {
 const restaurantFiles = (req) => req.files && Array.isArray(req.files)
     ? req.files
     : [];
+const dishFiles = (req) => {
+    if (!req.files)
+        return [];
+    if (Array.isArray(req.files))
+        return req.files;
+    const fields = req.files;
+    return [...(fields.images || []), ...(fields.image || [])];
+};
 const addRestaurantUploads = async (req, payload) => {
     const uploadedImages = await Promise.all(restaurantFiles(req).map(uploadImage));
     payload.images = [...new Set([...uploadedImages, ...payload.images])].slice(0, 4);
@@ -399,10 +407,16 @@ const createDish = async (req, res) => {
             res.status(400).json({ success: false, message: "Dish name and a valid price are required" });
             return;
         }
-        const image = req.file
-            ? await uploadImage(req.file)
-            : clean(req.body.existingImage ?? req.body.image);
-        if (!image) {
+        const uploadedImages = await Promise.all(dishFiles(req).map(uploadImage));
+        const legacyImage = clean(req.body.existingImage ?? req.body.image);
+        const images = [
+            ...new Set([
+                ...stringArray(req.body.existingImages),
+                ...(legacyImage ? [legacyImage] : []),
+                ...uploadedImages,
+            ]),
+        ].slice(0, 6);
+        if (images.length === 0) {
             res.status(400).json({ success: false, message: "Please upload a dish image" });
             return;
         }
@@ -410,8 +424,12 @@ const createDish = async (req, res) => {
             name,
             price,
             description: clean(req.body.description),
-            image,
+            image: images[0],
+            images,
             category: clean(req.body.category),
+            specialtyDescription: clean(req.body.specialtyDescription),
+            ingredients: stringArray(req.body.ingredients),
+            preparationProcess: clean(req.body.preparationProcess),
             isSignatureDish: booleanValue(req.body.isSignatureDish),
             isActive: booleanValue(req.body.isActive, true),
         });
@@ -439,20 +457,37 @@ const updateDish = async (req, res) => {
             res.status(404).json({ success: false, message: "Dish not found" });
             return;
         }
-        for (const field of ["name", "description", "category"]) {
+        for (const field of ["name", "description", "category", "specialtyDescription", "preparationProcess"]) {
             if (req.body[field] !== undefined)
                 dish[field] = clean(req.body[field]);
         }
-        if (req.file) {
-            dish.image = await uploadImage(req.file);
+        if (req.body.ingredients !== undefined) {
+            dish.ingredients = stringArray(req.body.ingredients);
         }
-        else if (req.body.existingImage !== undefined || req.body.image !== undefined) {
-            dish.image = clean(req.body.existingImage ?? req.body.image);
-        }
-        if (!dish.image) {
+        const uploadedImages = await Promise.all(dishFiles(req).map(uploadImage));
+        const hasExplicitImages = req.body.existingImages !== undefined;
+        const legacyImage = clean(req.body.existingImage ?? req.body.image);
+        const currentImages = Array.isArray(dish.images) && dish.images.length > 0
+            ? dish.images.map(clean).filter(Boolean)
+            : [clean(dish.image)].filter(Boolean);
+        const existingImages = hasExplicitImages
+            ? stringArray(req.body.existingImages)
+            : uploadedImages.length > 0
+                ? []
+                : currentImages;
+        const images = [
+            ...new Set([
+                ...existingImages,
+                ...(!hasExplicitImages && legacyImage && uploadedImages.length === 0 ? [legacyImage] : []),
+                ...uploadedImages,
+            ]),
+        ].slice(0, 6);
+        if (images.length === 0) {
             res.status(400).json({ success: false, message: "Please upload a dish image" });
             return;
         }
+        dish.images = images;
+        dish.image = images[0];
         if (req.body.price !== undefined)
             dish.price = numberValue(req.body.price);
         if (req.body.isSignatureDish !== undefined)

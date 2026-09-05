@@ -10,6 +10,7 @@ import {
   getDashboardStats,
   getCategoryCheckInStats,
   getAllReviews,
+  getReviewRestaurantSummaries,
 } from '../controllers/Review.controller'
 import protect from '../middlewares/auth.middleware'
 import authorizeRoles from '../middlewares/authorizeRoles'
@@ -21,6 +22,12 @@ router.post('/reviews', protect, asyncHandler(createReview))
 
 // Get all reviews
 router.get('/reviews', protect, authorizeRoles('admin', 'restaurant_owner'), asyncHandler(getAllReviews))
+router.get(
+  '/review-restaurants',
+  protect,
+  authorizeRoles('admin', 'restaurant_owner'),
+  asyncHandler(getReviewRestaurantSummaries)
+)
 
 router.get('/reviews/eligibility/:dealID', protect, authorizeRoles('user'), asyncHandler(getReviewEligibility))
 

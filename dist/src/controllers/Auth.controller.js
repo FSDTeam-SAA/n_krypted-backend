@@ -69,9 +69,12 @@ const register = async (req, res) => {
         // 1. Check if user exists
         let user = await User_model_1.default.findOne({ email });
         if (user && user.isVerified) {
-            res
-                .status(400)
-                .json({ success: false, message: "User already exists and is verified" });
+            res.status(409).json({
+                success: false,
+                message: user.role === "restaurant_owner"
+                    ? "Diese E-Mail-Adresse ist bereits als Restaurantbesitzer registriert."
+                    : "Diese E-Mail-Adresse ist bereits registriert.",
+            });
             return;
         }
         // 2. Generate verification code
@@ -771,7 +774,6 @@ const getAllUser = async (req, res, next) => {
         const { page, limit, skip } = (0, pagination_1.getPaginationParams)(req.query);
         const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
         const filter = {
-            role: { $ne: "restaurant_owner" },
             ...(search
                 ? {
                     $or: [

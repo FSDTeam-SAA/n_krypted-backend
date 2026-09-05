@@ -13,6 +13,7 @@ const router = express_1.default.Router();
 router.post('/reviews', auth_middleware_1.default, (0, asyncHandler_1.default)(Review_controller_1.createReview));
 // Get all reviews
 router.get('/reviews', auth_middleware_1.default, (0, authorizeRoles_1.default)('admin', 'restaurant_owner'), (0, asyncHandler_1.default)(Review_controller_1.getAllReviews));
+router.get('/review-restaurants', auth_middleware_1.default, (0, authorizeRoles_1.default)('admin', 'restaurant_owner'), (0, asyncHandler_1.default)(Review_controller_1.getReviewRestaurantSummaries));
 router.get('/reviews/eligibility/:dealID', auth_middleware_1.default, (0, authorizeRoles_1.default)('user'), (0, asyncHandler_1.default)(Review_controller_1.getReviewEligibility));
 // Get all reviews for a deal
 router.get('/reviews/deal/:dealID', (0, asyncHandler_1.default)(Review_controller_1.getReviewsByDeal));

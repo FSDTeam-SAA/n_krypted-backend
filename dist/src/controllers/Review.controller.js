@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.bulkDeleteReviews = exports.getAllReviews = exports.getCategoryCheckInStats = exports.getDashboardStats = exports.deleteReview = exports.updateReview = exports.getReviewsByDeal = exports.createReview = exports.getReviewEligibility = void 0;
+exports.bulkDeleteReviews = exports.getReviewRestaurantSummaries = exports.getAllReviews = exports.getCategoryCheckInStats = exports.getDashboardStats = exports.deleteReview = exports.updateReview = exports.getReviewsByDeal = exports.createReview = exports.getReviewEligibility = void 0;
 const mongoose_1 = __importDefault(require("mongoose"));
 const Review_model_1 = __importDefault(require("../models/Review.model"));
 const CheckIn_model_1 = __importDefault(require("../models/CheckIn.model"));
@@ -251,8 +251,15 @@ const getAllReviews = async (req, res, next) => {
         if (typeof req.query.dealId === 'string')
             filter.dealID = req.query.dealId;
         const restaurantIds = await ownerRestaurantIds(req);
-        if (restaurantIds)
-            filter.dealID = { $in: restaurantIds };
+        if (restaurantIds) {
+            filter.dealID =
+                typeof req.query.dealId === 'string' &&
+                    restaurantIds.some((id) => id.toString() === req.query.dealId)
+                    ? req.query.dealId
+                    : typeof req.query.dealId === 'string'
+                        ? { $in: [] }
+                        : { $in: restaurantIds };
+        }
         const [reviews, totalItems] = await Promise.all([
             Review_model_1.default.find(filter).populate(reviewPopulate).skip(skip).limit(limit).sort({ createdAt: -1 }),
             Review_model_1.default.countDocuments(filter),
@@ -268,6 +275,64 @@ const getAllReviews = async (req, res, next) => {
     }
 };
 exports.getAllReviews = getAllReviews;
+const getReviewRestaurantSummaries = async (req, res, next) => {
+    try {
+        const { page, limit, skip } = (0, pagination_1.getPaginationParams)(req.query);
+        const restaurantIds = await ownerRestaurantIds(req);
+        const match = restaurantIds ? { _id: { $in: restaurantIds } } : {};
+        const grouped = await Deal_model_1.default.aggregate([
+            { $match: match },
+            {
+                $lookup: {
+                    from: 'reviews',
+                    let: { restaurantId: '$_id' },
+                    pipeline: [
+                        { $match: { $expr: { $eq: ['$dealID', '$$restaurantId'] } } },
+                        {
+                            $group: {
+                                _id: null,
+                                totalReviews: { $sum: 1 },
+                                averageRating: { $avg: '$ratings' },
+                                latestReviewAt: { $max: '$createdAt' },
+                            },
+                        },
+                    ],
+                    as: 'reviewStats',
+                },
+            },
+            { $set: { reviewStats: { $first: '$reviewStats' } } },
+            {
+                $project: {
+                    restaurantId: '$_id',
+                    restaurantName: '$title',
+                    restaurantImages: '$images',
+                    location: 1,
+                    totalReviews: { $ifNull: ['$reviewStats.totalReviews', 0] },
+                    averageRating: { $round: [{ $ifNull: ['$reviewStats.averageRating', 0] }, 2] },
+                    latestReviewAt: '$reviewStats.latestReviewAt',
+                },
+            },
+            { $sort: { totalReviews: -1, averageRating: -1, latestReviewAt: -1 } },
+            {
+                $facet: {
+                    data: [{ $skip: skip }, { $limit: limit }, { $unset: '_id' }],
+                    count: [{ $count: 'total' }],
+                },
+            },
+        ]);
+        const data = grouped[0]?.data ?? [];
+        const totalItems = grouped[0]?.count?.[0]?.total ?? 0;
+        res.status(200).json({
+            success: true,
+            data,
+            meta: (0, pagination_1.buildMetaPagination)(totalItems, page, limit),
+        });
+    }
+    catch (error) {
+        next(error);
+    }
+};
+exports.getReviewRestaurantSummaries = getReviewRestaurantSummaries;
 const bulkDeleteReviews = async (req, res) => {
     const ids = Array.isArray(req.body?.ids) ? [...new Set(req.body.ids)] : [];
     if (ids.length === 0 ||

@@ -15,8 +15,8 @@ router.put('/owner/restaurant/:id', protect, authorizeRoles('restaurant_owner'),
 router.post('/admin/restaurants', protect, authorizeRoles('admin'), upload.array('images', 4), restaurantController.createAdminRestaurant)
 router.put('/admin/restaurants/:id', protect, authorizeRoles('admin', 'restaurant_owner'), upload.array('images', 4), restaurantController.updateAdminRestaurant)
 router.patch('/admin/restaurants/:id/approval', protect, authorizeRoles('admin'), restaurantController.updateRestaurantApproval)
-router.post('/restaurants/:id/dishes', protect, authorizeRoles('admin', 'restaurant_owner'), upload.single('image'), restaurantController.createDish)
-router.put('/restaurants/:id/dishes/:dishId', protect, authorizeRoles('admin', 'restaurant_owner'), upload.single('image'), restaurantController.updateDish)
+router.post('/restaurants/:id/dishes', protect, authorizeRoles('admin', 'restaurant_owner'), upload.fields([{ name: 'images', maxCount: 6 }, { name: 'image', maxCount: 1 }]), restaurantController.createDish)
+router.put('/restaurants/:id/dishes/:dishId', protect, authorizeRoles('admin', 'restaurant_owner'), upload.fields([{ name: 'images', maxCount: 6 }, { name: 'image', maxCount: 1 }]), restaurantController.updateDish)
 router.delete('/restaurants/:id/dishes/:dishId', protect, authorizeRoles('admin', 'restaurant_owner'), restaurantController.deleteDish)
 
 // Create a new deal

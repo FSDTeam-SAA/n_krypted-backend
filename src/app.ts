@@ -13,6 +13,7 @@ import feedbackRoutes from './routes/feedback.routes'
 import notificationRoutes from './routes/notification.routes'
 import authtestRoute from './routes/authtest'
 import blogCommentRoutes from './routes/blogComment.routes'
+import siteContentRoutes from './routes/siteContent.routes'
 
 const app = express()
 
@@ -64,6 +65,7 @@ app.use('/api', feedbackRoutes)
 app.use('/api', notificationRoutes)
 app.use('/api', authtestRoute)
 app.use('/api', blogCommentRoutes)
+app.use('/api', siteContentRoutes)
 
 app.use(errorMiddleware)
 

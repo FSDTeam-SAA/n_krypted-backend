@@ -262,7 +262,15 @@ export const getAllReviews = async (req: Request, res: Response, next: NextFunct
     if (typeof req.query.userId === 'string') filter.userID = req.query.userId
     if (typeof req.query.dealId === 'string') filter.dealID = req.query.dealId
     const restaurantIds = await ownerRestaurantIds(req)
-    if (restaurantIds) filter.dealID = { $in: restaurantIds }
+    if (restaurantIds) {
+      filter.dealID =
+        typeof req.query.dealId === 'string' &&
+        restaurantIds.some((id) => id.toString() === req.query.dealId)
+          ? req.query.dealId
+          : typeof req.query.dealId === 'string'
+            ? { $in: [] }
+            : { $in: restaurantIds }
+    }
 
     const [reviews, totalItems] = await Promise.all([
       Review.find(filter).populate(reviewPopulate).skip(skip).limit(limit).sort({ createdAt: -1 }),
@@ -272,6 +280,67 @@ export const getAllReviews = async (req: Request, res: Response, next: NextFunct
       success: true,
       meta: buildMetaPagination(totalItems, page, limit),
       data: reviews,
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+export const getReviewRestaurantSummaries = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { page, limit, skip } = getPaginationParams(req.query)
+    const restaurantIds = await ownerRestaurantIds(req)
+    const match = restaurantIds ? { _id: { $in: restaurantIds } } : {}
+    const grouped = await Deal.aggregate([
+      { $match: match },
+      {
+        $lookup: {
+          from: 'reviews',
+          let: { restaurantId: '$_id' },
+          pipeline: [
+            { $match: { $expr: { $eq: ['$dealID', '$$restaurantId'] } } },
+            {
+              $group: {
+                _id: null,
+                totalReviews: { $sum: 1 },
+                averageRating: { $avg: '$ratings' },
+                latestReviewAt: { $max: '$createdAt' },
+              },
+            },
+          ],
+          as: 'reviewStats',
+        },
+      },
+      { $set: { reviewStats: { $first: '$reviewStats' } } },
+      {
+        $project: {
+          restaurantId: '$_id',
+          restaurantName: '$title',
+          restaurantImages: '$images',
+          location: 1,
+          totalReviews: { $ifNull: ['$reviewStats.totalReviews', 0] },
+          averageRating: { $round: [{ $ifNull: ['$reviewStats.averageRating', 0] }, 2] },
+          latestReviewAt: '$reviewStats.latestReviewAt',
+        },
+      },
+      { $sort: { totalReviews: -1, averageRating: -1, latestReviewAt: -1 } },
+      {
+        $facet: {
+          data: [{ $skip: skip }, { $limit: limit }, { $unset: '_id' }],
+          count: [{ $count: 'total' }],
+        },
+      },
+    ])
+    const data = grouped[0]?.data ?? []
+    const totalItems = grouped[0]?.count?.[0]?.total ?? 0
+    res.status(200).json({
+      success: true,
+      data,
+      meta: buildMetaPagination(totalItems, page, limit),
     })
   } catch (error) {
     next(error)

@@ -24,7 +24,11 @@ export interface IDish {
   description?: string
   price: number
   image?: string
+  images?: string[]
   category?: string
+  specialtyDescription?: string
+  ingredients?: string[]
+  preparationProcess?: string
   isSignatureDish?: boolean
   isActive?: boolean
 }

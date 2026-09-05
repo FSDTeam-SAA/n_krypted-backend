@@ -51,8 +51,8 @@ router.put('/owner/restaurant/:id', auth_middleware_1.default, (0, authorizeRole
 router.post('/admin/restaurants', auth_middleware_1.default, (0, authorizeRoles_1.default)('admin'), multer_middleware_1.default.array('images', 4), restaurantController.createAdminRestaurant);
 router.put('/admin/restaurants/:id', auth_middleware_1.default, (0, authorizeRoles_1.default)('admin', 'restaurant_owner'), multer_middleware_1.default.array('images', 4), restaurantController.updateAdminRestaurant);
 router.patch('/admin/restaurants/:id/approval', auth_middleware_1.default, (0, authorizeRoles_1.default)('admin'), restaurantController.updateRestaurantApproval);
-router.post('/restaurants/:id/dishes', auth_middleware_1.default, (0, authorizeRoles_1.default)('admin', 'restaurant_owner'), multer_middleware_1.default.single('image'), restaurantController.createDish);
-router.put('/restaurants/:id/dishes/:dishId', auth_middleware_1.default, (0, authorizeRoles_1.default)('admin', 'restaurant_owner'), multer_middleware_1.default.single('image'), restaurantController.updateDish);
+router.post('/restaurants/:id/dishes', auth_middleware_1.default, (0, authorizeRoles_1.default)('admin', 'restaurant_owner'), multer_middleware_1.default.fields([{ name: 'images', maxCount: 6 }, { name: 'image', maxCount: 1 }]), restaurantController.createDish);
+router.put('/restaurants/:id/dishes/:dishId', auth_middleware_1.default, (0, authorizeRoles_1.default)('admin', 'restaurant_owner'), multer_middleware_1.default.fields([{ name: 'images', maxCount: 6 }, { name: 'image', maxCount: 1 }]), restaurantController.updateDish);
 router.delete('/restaurants/:id/dishes/:dishId', auth_middleware_1.default, (0, authorizeRoles_1.default)('admin', 'restaurant_owner'), restaurantController.deleteDish);
 // Create a new deal
 router.post('/deals', auth_middleware_1.default, (0, authorizeRoles_1.default)('admin'), multer_middleware_1.default.array('images'), dealController.createDeal);
