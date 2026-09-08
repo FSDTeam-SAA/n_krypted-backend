@@ -19,6 +19,7 @@ const notification_routes_1 = __importDefault(require("./routes/notification.rou
 const authtest_1 = __importDefault(require("./routes/authtest"));
 const blogComment_routes_1 = __importDefault(require("./routes/blogComment.routes"));
 const siteContent_routes_1 = __importDefault(require("./routes/siteContent.routes"));
+const saved_routes_1 = __importDefault(require("./routes/saved.routes"));
 const app = (0, express_1.default)();
 app.use((0, cors_1.default)({
     origin: '*',
@@ -62,5 +63,6 @@ app.use('/api', notification_routes_1.default);
 app.use('/api', authtest_1.default);
 app.use('/api', blogComment_routes_1.default);
 app.use('/api', siteContent_routes_1.default);
+app.use('/api', saved_routes_1.default);
 app.use(error_middleware_1.default);
 exports.default = app;

@@ -14,6 +14,7 @@ import notificationRoutes from './routes/notification.routes'
 import authtestRoute from './routes/authtest'
 import blogCommentRoutes from './routes/blogComment.routes'
 import siteContentRoutes from './routes/siteContent.routes'
+import savedRoutes from './routes/saved.routes'
 
 const app = express()
 
@@ -66,6 +67,7 @@ app.use('/api', notificationRoutes)
 app.use('/api', authtestRoute)
 app.use('/api', blogCommentRoutes)
 app.use('/api', siteContentRoutes)
+app.use('/api', savedRoutes)
 
 app.use(errorMiddleware)
 
