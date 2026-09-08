@@ -36,6 +36,11 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const mongoose_1 = __importStar(require("mongoose"));
 const DealSchema = new mongoose_1.Schema({
     title: { type: String, required: true },
+    opensAt: { type: Date },
+    openingHours: { type: String },
+    contactEmail: { type: String },
+    contactPhone: { type: String },
+    reservationRequired: { type: Boolean },
     description: { type: String, required: true },
     shortDescription: { type: String, required: true },
     participationsLimit: { type: Number, default: 0 },

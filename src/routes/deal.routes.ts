@@ -4,8 +4,10 @@ import upload from '../middlewares/multer.middleware'
 import protect from '../middlewares/auth.middleware'
 import authorizeRoles from '../middlewares/authorizeRoles'
 import * as restaurantController from '../controllers/RestaurantManagement.controller'
+import { discoverRestaurant, discoverRestaurants, discoveryOptions } from '../controllers/Discovery.controller'
 
 const router = Router()
+router.get('/discovery/options', discoveryOptions)
 
 router.get('/manage/deals', protect, authorizeRoles('admin', 'restaurant_owner'), restaurantController.getManagedRestaurants)
 router.get('/manage/deals/:id', protect, authorizeRoles('admin', 'restaurant_owner'), restaurantController.getManagedRestaurant)
@@ -31,12 +33,12 @@ router.post(
 // Get all deals
 router.get(
   '/deals',
-  dealController.getAllDeals
+  discoverRestaurants
 )
 router.get("/deals/popular", dealController.getPopularDeals);
 
 // Get single deal
-router.get('/deals/:id', dealController.getSingleDeal)
+router.get('/deals/:id', discoverRestaurant)
 
 // Update a deal
 router.patch(

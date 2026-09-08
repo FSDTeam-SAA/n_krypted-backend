@@ -6,6 +6,7 @@ import User from "../models/User.model";
 import CheckIn from "../models/CheckIn.model";
 import Review from "../models/Review.model";
 import cloudinary from "../utils/cloudinary";
+import { queueRemovedImages, processImageCleanup } from "../utils/imageCleanup";
 
 const safeOwnerFields = "name email phoneNumber role";
 const approvalStatuses = ["pending", "approved", "rejected"] as const;
@@ -81,6 +82,11 @@ const restaurantPayload = (body: Record<string, any>) => {
     shortDescription: clean(body.shortDescription) || clean(body.description).slice(0, 160),
     description: clean(body.description),
     price: numberValue(body.price) ?? 0,
+    ...(body.opensAt !== undefined ? { opensAt: body.opensAt ? new Date(body.opensAt) : null } : {}),
+    ...(body.openingHours !== undefined ? { openingHours: clean(body.openingHours) } : {}),
+    ...(body.contactEmail !== undefined ? { contactEmail: clean(body.contactEmail) } : {}),
+    ...(body.contactPhone !== undefined ? { contactPhone: clean(body.contactPhone) } : {}),
+    ...(body.reservationRequired !== undefined ? { reservationRequired: booleanValue(body.reservationRequired) } : {}),
     location: {
       address: clean(rawLocation.address),
       city: clean(rawLocation.city),
@@ -98,6 +104,7 @@ const restaurantPayload = (body: Record<string, any>) => {
 };
 
 const validateRestaurant = (payload: ReturnType<typeof restaurantPayload>) => {
+  if (payload.opensAt && Number.isNaN(payload.opensAt.getTime())) return "Invalid opening date";
   if (!payload.title || !payload.description) return "Restaurant name and description are required";
   if (!payload.location.city || !payload.location.country || !payload.location.address) {
     return "Address, city and country are required";
@@ -195,7 +202,7 @@ export const resubmitOwnerRestaurant = async (req: Request, res: Response): Prom
     }
     const payload = restaurantPayload({
       ...req.body,
-      images: req.body.existingImages ?? req.body.images,
+      images: req.body.existingImages ?? req.body.images ?? restaurant.images,
     });
     const validationError = validateRestaurant(payload);
     if (validationError) {
@@ -207,6 +214,8 @@ export const resubmitOwnerRestaurant = async (req: Request, res: Response): Prom
       res.status(400).json({ success: false, message: "Please upload at least one restaurant image" });
       return;
     }
+    // Queue before committing: failed saves leave references intact, so cleanup is safe.
+    const removedImages = await queueRemovedImages(restaurant.images || [], payload.images);
     Object.assign(restaurant, payload, {
       approvalStatus: "pending",
       rejectionReason: undefined,
@@ -214,6 +223,7 @@ export const resubmitOwnerRestaurant = async (req: Request, res: Response): Prom
       status: "deactivate",
     });
     await restaurant.save();
+    void processImageCleanup(removedImages).catch(() => undefined);
     res.status(200).json({ success: true, message: "Restaurant resubmitted for approval", restaurant });
   } catch (error) {
     res.status(500).json({ success: false, message: "Failed to resubmit restaurant", error: (error as Error).message });
@@ -297,7 +307,7 @@ export const updateAdminRestaurant = async (req: Request, res: Response): Promis
     }
     const payload = restaurantPayload({
       ...req.body,
-      images: req.body.existingImages ?? req.body.images,
+      images: req.body.existingImages ?? req.body.images ?? restaurant.images,
     });
     const validationError = validateRestaurant(payload);
     if (validationError) {
@@ -305,12 +315,10 @@ export const updateAdminRestaurant = async (req: Request, res: Response): Promis
       return;
     }
     await addRestaurantUploads(req, payload);
-    if (!payload.images.length) {
-      res.status(400).json({ success: false, message: "Please upload at least one restaurant image" });
-      return;
-    }
+    const removedImages = await queueRemovedImages(restaurant.images || [], payload.images);
     Object.assign(restaurant, payload);
     await restaurant.save();
+    void processImageCleanup(removedImages).catch(() => undefined);
     await restaurant.populate("owner", safeOwnerFields);
     res.status(200).json({ success: true, message: "Restaurant erfolgreich aktualisiert", restaurant });
   } catch (error) {
@@ -486,6 +494,7 @@ export const updateDish = async (req: Request, res: Response): Promise<void> => 
       res.status(400).json({ success: false, message: "Please upload a dish image" });
       return;
     }
+    const removedImages = await queueRemovedImages([...currentImages, clean(dish.image)].filter(Boolean), images);
     dish.images = images;
     dish.image = images[0];
     if (req.body.price !== undefined) dish.price = numberValue(req.body.price);
@@ -493,6 +502,7 @@ export const updateDish = async (req: Request, res: Response): Promise<void> => 
     if (req.body.isActive !== undefined) dish.isActive = booleanValue(req.body.isActive);
     await restaurant.save();
     res.status(200).json({ success: true, message: "Dish updated", restaurant });
+    void processImageCleanup(removedImages).catch(() => undefined);
   } catch (error) {
     res.status(500).json({ success: false, message: "Failed to update dish", error: (error as Error).message });
   }
@@ -514,8 +524,10 @@ export const deleteDish = async (req: Request, res: Response): Promise<void> => 
       res.status(404).json({ success: false, message: "Dish not found" });
       return;
     }
+    const removedImages = await queueRemovedImages([dish.image, ...(dish.images || [])].filter(Boolean), []);
     dish.deleteOne();
     await restaurant.save();
+    void processImageCleanup(removedImages).catch(() => undefined);
     res.status(200).json({ success: true, message: "Dish deleted", restaurant });
   } catch (error) {
     res.status(500).json({ success: false, message: "Failed to delete dish", error: (error as Error).message });

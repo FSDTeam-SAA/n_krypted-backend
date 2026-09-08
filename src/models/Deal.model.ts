@@ -4,6 +4,11 @@ import { IDeal } from '../interfaces/Deal.interface'
 const DealSchema = new Schema<IDeal>(
   {
     title: { type: String, required: true },
+    opensAt: { type: Date },
+    openingHours: { type: String },
+    contactEmail: { type: String },
+    contactPhone: { type: String },
+    reservationRequired: { type: Boolean },
     description: { type: String, required: true },
      shortDescription: { type: String, required: true },
     participationsLimit: { type: Number, default: 0 },
