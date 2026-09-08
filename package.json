@@ -6,6 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
+    "seed:owner-demo": "ts-node src/seedOwnerDemo.ts",
     "lint": "eslint . --ext .ts",
     "start": "node dist/src/server.js",
     "build": "tsc"

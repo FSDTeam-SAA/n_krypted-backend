@@ -36,6 +36,11 @@ export interface IDish {
 export interface IDeal {
   _id?: Types.ObjectId
   title: string
+  opensAt?: Date
+  openingHours?: string
+  contactEmail?: string
+  contactPhone?: string
+  reservationRequired?: boolean
   description: string
   popularDeals?: boolean
   shortDescription: string

@@ -88,7 +88,7 @@ const createCheckIn = async (req, res) => {
         res.status(400).json({ success: false, message: 'Invalid restaurant id' });
         return;
     }
-    if (!validCoordinates(latitude, longitude)) {
+    if (typeof req.body?.latitude !== 'number' || typeof req.body?.longitude !== 'number' || !validCoordinates(latitude, longitude)) {
         res.status(400).json({ success: false, message: 'A valid current location is required' });
         return;
     }
@@ -122,7 +122,7 @@ const createCheckIn = async (req, res) => {
     }
     const restaurantLatitude = Number(restaurant.location?.latitude);
     const restaurantLongitude = Number(restaurant.location?.longitude);
-    if (!validCoordinates(restaurantLatitude, restaurantLongitude)) {
+    if (typeof restaurant.location?.latitude !== 'number' || typeof restaurant.location?.longitude !== 'number' || !validCoordinates(restaurantLatitude, restaurantLongitude)) {
         res.status(409).json({
             success: false,
             message: 'This restaurant does not have a valid map location yet',

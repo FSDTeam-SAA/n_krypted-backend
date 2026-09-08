@@ -10,12 +10,14 @@ const app_1 = __importDefault(require("./app"));
 const db_1 = require("./config/db");
 const http_1 = __importDefault(require("http"));
 const socket_1 = require("./socket/socket");
+const imageCleanup_1 = require("./utils/imageCleanup");
 const server = http_1.default.createServer(app_1.default);
 // Initialize Socket.IO
 const io = (0, socket_1.initializeSocket)(server);
 exports.io = io;
 const PORT = process.env.PORT || 5000;
 (0, db_1.connectDB)().then(() => {
+    (0, imageCleanup_1.startImageCleanupWorker)();
     server.listen(PORT, () => {
         console.log(`Server is running on port ${PORT}`);
     });

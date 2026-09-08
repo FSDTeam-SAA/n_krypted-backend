@@ -720,6 +720,10 @@ export const changePassword = async (
 ): Promise<void> => {
   try {
     const { currentPassword, newPassword } = req.body;
+    if (typeof currentPassword !== 'string' || typeof newPassword !== 'string' || newPassword.length < 6) {
+      res.status(400).json({ success: false, message: 'Current password and a new password of at least 6 characters are required' });
+      return;
+    }
     const userId = req.user?.id;
 
     const user = await User.findById(userId);
@@ -781,6 +785,10 @@ export const updateUser = async (
     }
 
     const { name, phoneNumber, country, cityState } = req.body;
+    if (name !== undefined && (typeof name !== 'string' || !name.trim())) {
+      res.status(400).json({ success: false, message: 'Name is required' });
+      return;
+    }
     const userId = req.user?.id;
 
     if (!userId) {
@@ -799,10 +807,10 @@ export const updateUser = async (
     }
 
     // Benutzerfelder aktualisieren
-    if (name) user.name = name;
-    if (phoneNumber) user.phoneNumber = phoneNumber;
-    if (country) user.country = country;
-    if (cityState) user.cityState = cityState;
+    if (name !== undefined) user.name = String(name).trim();
+    if (phoneNumber !== undefined) user.phoneNumber = String(phoneNumber).trim();
+    if (country !== undefined) user.country = String(country).trim();
+    if (cityState !== undefined) user.cityState = String(cityState).trim();
     if (imageUrl) user.avatar = imageUrl;
 
     await user.save();
@@ -810,7 +818,7 @@ export const updateUser = async (
     res.status(200).json({
       success: true,
       message: "Benutzerinformationen erfolgreich aktualisiert",
-      data: user,
+      data: await User.findById(userId).select('-password -verificationCode -resetPasswordToken -resetPasswordExpires'),
     });
   } catch (error: unknown) {
     res.status(500).json({
